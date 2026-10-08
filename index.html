@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#101612">
+    <meta name="description" content="Follow upcoming soccer fixtures across Europe's major leagues.">
+    <title>Touchline — Soccer Fixtures</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Touchline home">
+        <span class="brand-mark" aria-hidden="true">T</span>
+        <span>touchline<span class="brand-period">.</span></span>
+      </a>
+      <nav class="primary-nav" aria-label="Main navigation">
+        <a class="primary-link" href="#scores" data-page="scores">Scores</a>
+        <a class="primary-link selected" href="#fixtures" data-page="fixtures">Fixtures</a>
+        <a class="primary-link" href="#standings" data-page="standings">Standings</a>
+      </nav>
+      <div class="topbar-right"><span class="feed-dot"></span><span class="date-label" id="header-date"></span></div>
+    </header>
+
+    <main class="app-layout" id="fixtures">
+      <aside class="sidebar" id="competitions" aria-label="Competition filters">
+        <p class="sidebar-heading">COMPETITIONS</p>
+        <button class="league-filter selected" type="button" data-league="all"><span class="side-icon">◎</span> All competitions</button>
+        <div id="league-filters"></div>
+        <div class="sidebar-foot"><span class="feed-dot"></span> Fixtures by ESPN</div>
+      </aside>
+
+      <section class="content">
+        <div class="content-heading">
+          <div>
+            <p class="section-kicker">FOOTBALL / FIXTURES</p>
+            <h1>Matches <span class="match-count" id="match-count">0</span></h1>
+          </div>
+          <button class="refresh-button" id="refresh-button" type="button" aria-label="Refresh fixtures">
+            <span aria-hidden="true">↻</span><span class="refresh-text">Refresh</span>
+          </button>
+        </div>
+
+        <div class="date-strip" id="date-strip" aria-label="Choose match date"></div>
+
+        <section class="scoreboard" id="match-view" aria-label="Soccer fixtures">
+          <div class="toolbar">
+            <div class="filter-tabs" role="tablist" aria-label="Filter matches">
+              <button class="filter-tab" type="button" data-filter="all" role="tab" aria-selected="false">All</button>
+              <button class="filter-tab" type="button" data-filter="live" role="tab" aria-selected="false"><span class="tab-live-dot"></span> Live</button>
+              <button class="filter-tab active" type="button" data-filter="upcoming" role="tab" aria-selected="true">Upcoming</button>
+              <button class="filter-tab" type="button" data-filter="finished" role="tab" aria-selected="false">Finished</button>
+            </div>
+            <div class="toolbar-controls">
+              <label class="search-box">
+                <span class="sr-only">Search teams or leagues</span>
+                <span aria-hidden="true">⌕</span>
+                <input type="search" id="search-input" placeholder="Search" autocomplete="off">
+              </label>
+              <button class="favorites-toggle" id="favorites-toggle" type="button" aria-pressed="false" aria-label="Show favorite matches">☆</button>
+            </div>
+          </div>
+          <div id="match-list" class="match-list" aria-live="polite"></div>
+          <p class="last-updated" id="last-updated" aria-live="polite">Loading fixtures…</p>
+        </section>
+        <section class="scoreboard standings-view" id="standings-view" aria-label="League standings" hidden>
+          <div class="standings-heading">
+            <h2 id="standings-title">League standings</h2>
+            <span id="standings-source">Loading table…</span>
+          </div>
+          <div id="standings-content" aria-live="polite"></div>
+        </section>
+        <footer class="footer">No streams, just the fixtures and scores.</footer>
+      </section>
+    </main>
+  </body>
+</html>

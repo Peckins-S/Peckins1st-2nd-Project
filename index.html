@@ -7,6 +7,7 @@
     <meta name="description" content="Follow upcoming soccer fixtures across Europe's major leagues.">
     <title>90+minutes — Soccer Fixtures</title>
     <link rel="stylesheet" href="style.css">
+    <script src="supabase-config.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -19,7 +20,7 @@
             <text x="20" y="23" fill="#f2fff0" font-family="Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">90</text>
           </svg>
         </span>
-        <span>90<span class="brand-period">+</span>minutes</span>
+        <span data-site-brand>90+minutes</span>
       </a>
       <nav class="primary-nav" aria-label="Main navigation">
         <a class="primary-link" href="#scores" data-page="scores">Scores</a>
@@ -39,6 +40,7 @@
       </aside>
 
       <section class="content">
+        <aside class="site-announcement" id="site-announcement" aria-live="polite" hidden></aside>
         <div class="content-heading">
           <div>
             <p class="section-kicker">FOOTBALL / FIXTURES</p>
@@ -92,7 +94,7 @@
           </div>
           <div id="match-detail-content" aria-live="polite"></div>
         </section>
-        <footer class="footer">No streams, just the fixtures and scores.</footer>
+        <footer class="footer">No streams, just the fixtures and scores. <a href="admin.html">Admin</a></footer>
       </section>
     </main>
     <dialog class="player-dialog" id="player-dialog" aria-labelledby="player-dialog-title">

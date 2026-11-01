@@ -6,6 +6,19 @@ const leagues = [
   { id: "fra.1", espnId: "710", name: "Ligue 1", country: "France", mark: "L1" }
 ];
 
+const featuredLeagueChoices = [
+  { id: "700", name: "Premier League" },
+  { id: "740", name: "La Liga" },
+  { id: "720", name: "Bundesliga" },
+  { id: "730", name: "Serie A" },
+  { id: "710", name: "Ligue 1" },
+  { id: "715", name: "Primeira Liga" },
+  { id: "725", name: "Eredivisie" },
+  { id: "630", name: "Brasileirão Série A" },
+  { id: "745", name: "Argentina Primera División" }
+];
+const defaultFeaturedCompetitionIds = featuredLeagueChoices.map((league) => league.id);
+
 const fotmobLeagueStatsUrls = {
   "700": "https://www.fotmob.com/leagues/47/stats/premier-league/players",
   "740": "https://www.fotmob.com/leagues/87/stats/laliga/players",
@@ -90,9 +103,10 @@ const competitionOrder = [
 ];
 const competitionRanks = new Map(competitionOrder.map((id, index) => [id, index]));
 const lastVisibleCompetitionRank = competitionRanks.get("745");
-const visibleCompetitionIds = new Set(
+const defaultVisibleCompetitionIds = new Set(
   competitionOrder.slice(0, lastVisibleCompetitionRank + 1)
 );
+let visibleCompetitionIds = new Set(defaultVisibleCompetitionIds);
 
 const state = {
   matches: [],
@@ -138,7 +152,8 @@ const elements = {
   leagueStatsContent: document.querySelector("#league-stats-content"),
   detailView: document.querySelector("#match-detail-view"),
   detailContent: document.querySelector("#match-detail-content"),
-  detailUpdated: document.querySelector("#detail-updated")
+  detailUpdated: document.querySelector("#detail-updated"),
+  siteAnnouncement: document.querySelector("#site-announcement")
 };
 
 function dateKey(date) {
@@ -304,6 +319,58 @@ async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Feed request failed (${response.status}).`);
   return response.json();
+}
+
+function getSupabaseConfig() {
+  const config = window.SUPABASE_CONFIG;
+  if (!config || typeof config.url !== "string" || typeof config.anonKey !== "string"
+    || !config.url.trim() || !config.anonKey.trim()
+    || config.url.includes("YOUR_PROJECT") || config.anonKey.includes("YOUR_SUPABASE")) {
+    return null;
+  }
+  return config;
+}
+
+function applySiteSettings(settings) {
+  if (!settings || typeof settings !== "object") return;
+  const brandName = typeof settings.brand_name === "string" ? settings.brand_name.trim() : "";
+  if (brandName) {
+    const brandText = document.querySelector("[data-site-brand]");
+    brandText.textContent = brandName;
+    document.querySelector(".brand").setAttribute("aria-label", `${brandName} home`);
+    document.title = `${brandName} — Soccer Fixtures`;
+  }
+
+  if (elements.siteAnnouncement && typeof settings.announcement === "string") {
+    const announcement = settings.announcement.trim();
+    elements.siteAnnouncement.textContent = announcement;
+    elements.siteAnnouncement.hidden = !announcement;
+  }
+
+  if (Array.isArray(settings.featured_competitions)) {
+    const selected = settings.featured_competitions
+      .filter((id) => typeof id === "string" && defaultFeaturedCompetitionIds.includes(id));
+    if (selected.length) visibleCompetitionIds = new Set(selected);
+  }
+}
+
+async function loadPublicSiteSettings() {
+  const config = getSupabaseConfig();
+  if (!config) return;
+  try {
+    const baseUrl = config.url.replace(/\/+$/, "");
+    const response = await fetch(`${baseUrl}/rest/v1/site_settings?id=eq.true&select=brand_name,announcement,featured_competitions`, {
+      headers: {
+        apikey: config.anonKey,
+        Authorization: `Bearer ${config.anonKey}`
+      }
+    });
+    if (!response.ok) throw new Error(`Settings request failed (${response.status}).`);
+    const rows = await response.json();
+    if (Array.isArray(rows) && rows[0]) applySiteSettings(rows[0]);
+  } catch (error) {
+    console.error("Could not load shared site settings.", error);
+  }
 }
 
 async function fetchMatches() {
@@ -1164,7 +1231,10 @@ renderDateStrip();
 const initialPage = location.hash.slice(1);
 if (["scores", "fixtures", "standings", "stats"].includes(initialPage)) selectPage(initialPage);
 else renderPage();
-loadData();
+loadPublicSiteSettings().then(loadData, (error) => {
+  console.error("Could not initialize shared site settings.", error);
+  loadData();
+});
 
 window.setInterval(() => {
   if (!document.hidden && !state.detailMatchId) loadData();

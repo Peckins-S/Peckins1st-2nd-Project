@@ -304,6 +304,27 @@ h1 { font-size: 36px; }
 .lineup-number { color: var(--green); font: 11px "DM Mono", monospace; text-align: center; }
 .lineup-team li small { color: var(--muted); font-size: 10px; }
 .lineup-team .detail-empty { padding: 18px 10px; }
+.player-name-button { padding: 0; border: 0; background: transparent; color: var(--text); cursor: pointer; font: inherit; text-align: left; }
+.player-name-button:hover { color: var(--green); text-decoration: underline; text-underline-offset: 3px; }
+.player-name-button span { color: var(--green); font-size: 10px; }
+.player-dialog { width: min(520px, calc(100% - 28px)); max-height: min(760px, calc(100% - 36px)); padding: 0; overflow: auto; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); }
+.player-dialog::backdrop { background: rgb(0 0 0 / 72%); backdrop-filter: blur(3px); }
+.player-dialog-content { position: relative; padding: 25px; }
+.player-dialog-close { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface-hover); color: var(--text); cursor: pointer; font-size: 22px; line-height: 1; }
+.player-detail-kicker { margin: 0 42px 8px 0; color: var(--green); font: 10px "DM Mono", monospace; text-transform: uppercase; }
+.player-dialog h2 { margin: 0; padding-right: 30px; font: 600 24px "Space Grotesk", sans-serif; }
+.player-detail-team { margin: 5px 0 18px; color: var(--muted); font-size: 13px; }
+.player-detail-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.player-detail-meta > div { display: flex; flex-direction: column; gap: 4px; min-width: 100px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); }
+.player-detail-meta span, .player-detail-stat span { color: var(--muted); font-size: 10px; }
+.player-detail-meta strong { font-size: 12px; }
+.player-dialog h3 { margin: 0 0 10px; font: 600 14px "Space Grotesk", sans-serif; }
+.player-detail-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.player-detail-stat { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); }
+.player-detail-stat span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-detail-stat strong { font: 600 13px "DM Mono", monospace; }
+.player-detail-source { margin: 16px 0 0; color: var(--muted); font-size: 10px; }
+.player-fotmob-link { display: inline-block; margin-top: 12px; color: var(--green); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
 .team-statistics { max-width: 680px; margin: 0 auto 24px; }
 .team-stat-labels, .team-stat-row { display: grid; grid-template-columns: minmax(54px, 1fr) minmax(100px, 1.5fr) minmax(54px, 1fr); gap: 10px; align-items: center; text-align: center; }
 .team-stat-labels { padding: 0 8px 12px; color: var(--muted); font-size: 11px; }
@@ -354,6 +375,8 @@ h1 { font-size: 36px; }
   .detail-tabs { justify-content: center; padding-right: 6px; padding-left: 6px; }
   .detail-tabs button { padding-right: 11px; padding-left: 11px; }
   .detail-panel { padding: 12px 9px; }
+  .player-dialog-content { padding: 22px 16px; }
+  .player-detail-stats { grid-template-columns: 1fr; }
   .leader-grid { grid-template-columns: 1fr; }
   .league-leaders > header { padding: 12px; }
 }

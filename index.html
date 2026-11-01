@@ -81,7 +81,7 @@
         <section class="scoreboard league-stats-view" id="league-stats-view" aria-label="League player statistics" hidden>
           <div class="standings-heading">
             <h2 id="league-stats-title">League leaders</h2>
-            <span id="league-stats-source">Season stats by ESPN</span>
+            <span id="league-stats-source">Season player stats</span>
           </div>
           <div id="league-stats-content" aria-live="polite"></div>
         </section>
@@ -95,5 +95,11 @@
         <footer class="footer">No streams, just the fixtures and scores.</footer>
       </section>
     </main>
+    <dialog class="player-dialog" id="player-dialog" aria-labelledby="player-dialog-title">
+      <div class="player-dialog-content">
+        <button class="player-dialog-close" type="button" aria-label="Close player details">×</button>
+        <div id="player-dialog-body"></div>
+      </div>
+    </dialog>
   </body>
 </html>

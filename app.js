@@ -6,6 +6,14 @@ const leagues = [
   { id: "fra.1", espnId: "710", name: "Ligue 1", country: "France", mark: "L1" }
 ];
 
+const fotmobLeagueStatsUrls = {
+  "700": "https://www.fotmob.com/leagues/47/stats/premier-league/players",
+  "740": "https://www.fotmob.com/leagues/87/stats/laliga/players",
+  "720": "https://www.fotmob.com/leagues/54/stats/bundesliga/players",
+  "730": "https://www.fotmob.com/leagues/55/stats/serie-a/players",
+  "710": "https://www.fotmob.com/leagues/53/stats/ligue-1/players"
+};
+
 const globalLeagueNames = {
   "770": ["Major League Soccer", "USA", "MLS"],
   "8301": ["National Women's Soccer League", "USA", "NWSL"],
@@ -104,7 +112,9 @@ const state = {
   detailLoading: false,
   detailError: "",
   detailRequest: 0,
-  matchError: ""
+  matchError: "",
+  playerDialog: document.querySelector("#player-dialog"),
+  playerDialogBody: document.querySelector("#player-dialog-body")
 };
 
 const elements = {
@@ -446,10 +456,18 @@ function getTeamRoster(summary, team, side) {
     players: (roster || []).map((item) => {
       const athlete = item.athlete || item;
       return {
+        id: String(athlete.id || athlete.uid || ""),
         name: athlete.displayName || athlete.fullName || athlete.name || "Player",
         number: athlete.jersey || item.jersey || "",
         position: item.position && (item.position.displayName || item.position.abbreviation)
-          || athlete.position && (athlete.position.displayName || athlete.position.abbreviation) || ""
+          || athlete.position && (athlete.position.displayName || athlete.position.abbreviation) || "",
+        starter: Boolean(item.starter),
+        subbedIn: Boolean(item.subbedIn),
+        subbedOut: Boolean(item.subbedOut),
+        stats: (item.stats || []).map((stat) => ({
+          name: stat.displayName || stat.name || stat.abbreviation || "",
+          value: stat.displayValue ?? stat.value ?? "—"
+        })).filter((stat) => stat.name)
       };
     })
   };
@@ -477,13 +495,42 @@ function getTeamStatistics(summary, match) {
 }
 
 function getPlayerStatistics(summary) {
+  const rosterPlayers = listFrom(summary.rosters).flatMap((section) =>
+    (section.roster || []).map((item) => {
+      const athlete = item.athlete || item;
+      return {
+        id: String(athlete.id || athlete.uid || ""),
+        teamId: String(section.team && section.team.id || ""),
+        team: section.team && (section.team.displayName || section.team.name) || "",
+        name: athlete.displayName || athlete.fullName || athlete.name || "Player",
+        number: item.jersey || athlete.jersey || "",
+        position: item.position && (item.position.displayName || item.position.abbreviation) || "",
+        starter: Boolean(item.starter),
+        subbedIn: Boolean(item.subbedIn),
+        subbedOut: Boolean(item.subbedOut),
+        stats: (item.stats || []).map((stat) => ({
+          name: stat.displayName || stat.name || stat.abbreviation || "",
+          value: stat.displayValue ?? stat.value ?? "—"
+        })).filter((stat) => stat.name)
+      };
+    }).filter((player) => player.stats.length)
+  );
+  if (rosterPlayers.length) return rosterPlayers;
+
   return listFrom(summary.boxscore && summary.boxscore.players).flatMap((section) =>
-    (section.statistics || []).flatMap((group) => (group.athletes || []).map((player) => ({
-      team: section.team && section.team.displayName || "",
-      name: player.athlete && (player.athlete.displayName || player.athlete.fullName) || "Player",
-      labels: player.labels || group.labels || [],
-      stats: player.stats || []
-    })).filter((player) => player.stats.length))
+    (section.statistics || []).flatMap((group) => (group.athletes || []).map((player) => {
+      const labels = player.labels || group.labels || [];
+      return {
+        id: String(player.athlete && player.athlete.id || ""),
+        teamId: String(section.team && section.team.id || ""),
+        team: section.team && section.team.displayName || "",
+        name: player.athlete && (player.athlete.displayName || player.athlete.fullName) || "Player",
+        stats: (player.stats || []).map((value, index) => ({
+          name: labels[index] || `Stat ${index + 1}`,
+          value
+        }))
+      };
+    }).filter((player) => player.stats.length))
   );
 }
 
@@ -623,17 +670,84 @@ function renderMatchEvents(summary) {
 }
 
 function renderLineups(summary, match) {
+  const renderPlayerButton = (player) => `<button class="player-name-button" type="button" data-player-id="${escapeHtml(player.id)}" data-player-team="${escapeHtml(player.teamId || "")}" data-player-name="${escapeHtml(player.name)}" aria-haspopup="dialog">${escapeHtml(player.name)}<span aria-hidden="true"> ↗</span></button>`;
   const renderTeam = (team, side) => {
     const roster = getTeamRoster(summary, team, side);
     const players = roster.players.length
       ? `<ol>${roster.players.map((player) => `
           <li><span class="lineup-number">${escapeHtml(player.number || "—")}</span>
-          <span>${escapeHtml(player.name)}</span><small>${escapeHtml(player.position)}</small></li>
+          ${renderPlayerButton({ ...player, teamId: team.id })}
+          <small>${escapeHtml(player.position)}</small></li>
         `).join("")}</ol>`
       : `<p class="detail-empty">Lineup not published yet.</p>`;
     return `<section class="lineup-team"><h3>${clubBadge(team, "club-badge--lineup")}<span class="lineup-team-name">${escapeHtml(team.displayName || team.name)}</span>${roster.formation ? `<span class="lineup-formation">${escapeHtml(roster.formation)}</span>` : ""}</h3>${players}</section>`;
   };
   return `<div class="lineups-grid">${renderTeam(match.home, "home")}${renderTeam(match.away, "away")}</div>`;
+}
+
+function renderPlayerDetails(player, match) {
+  const appearance = player.starter ? "Started"
+    : player.subbedIn ? "Substitute appearance"
+      : "Squad player";
+  const details = [
+    player.number ? { name: "Number", value: player.number } : null,
+    player.position ? { name: "Position", value: player.position } : null,
+    { name: "Appearance", value: appearance }
+  ].filter(Boolean);
+  const stats = player.stats && player.stats.length
+    ? `<div class="player-detail-stats">${player.stats.map((stat) => `
+        <div class="player-detail-stat"><span>${escapeHtml(stat.name)}</span><strong>${escapeHtml(stat.value)}</strong></div>
+      `).join("")}</div>`
+    : `<p class="detail-empty">Individual match stats are not available for this player.</p>`;
+  const fotmobUrl = fotmobLeagueStatsUrls[match.league.espnId];
+  state.playerDialogBody.innerHTML = `
+    <p class="player-detail-kicker">${escapeHtml(match.league.name)} · Match stats</p>
+    <h2 id="player-dialog-title">${escapeHtml(player.name)}</h2>
+    <p class="player-detail-team">${escapeHtml(player.team || "Team unavailable")}</p>
+    <div class="player-detail-meta">${details.map((item) => `
+      <div><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(item.value)}</strong></div>
+    `).join("")}</div>
+    <h3>Match performance</h3>
+    ${stats}
+    <p class="player-detail-source">Player match data provided by ESPN.</p>
+    ${fotmobUrl ? `<a class="player-fotmob-link" href="${fotmobUrl}" target="_blank" rel="noopener noreferrer">Browse ${escapeHtml(match.league.name)} player stats on FotMob ↗</a>` : ""}
+  `;
+  if (!state.playerDialog.open) state.playerDialog.showModal();
+}
+
+function openPlayerDetails(button) {
+  const match = state.matches.find((item) => item.id === state.detailMatchId);
+  if (!match || !state.detailData) return;
+  const playerId = button.dataset.playerId;
+  const teamId = button.dataset.playerTeam;
+  const rosterPlayers = [
+    ...getTeamRoster(state.detailData, match.home, "home").players.map((player) => ({
+      ...player,
+      team: match.home.displayName || match.home.name,
+      teamId: String(match.home.id || "")
+    })),
+    ...getTeamRoster(state.detailData, match.away, "away").players.map((player) => ({
+      ...player,
+      team: match.away.displayName || match.away.name,
+      teamId: String(match.away.id || "")
+    }))
+  ];
+  const players = [...rosterPlayers, ...getPlayerStatistics(state.detailData)];
+  const player = players.find((item) =>
+    playerId && item.id === playerId && (!teamId || item.teamId === teamId)
+  ) || players.find((item) =>
+    item.name === button.dataset.playerName && (!teamId || item.teamId === teamId)
+  );
+  if (!player) {
+    state.playerDialogBody.innerHTML = `
+      <p class="player-detail-kicker">${escapeHtml(match.league.name)} · Match stats</p>
+      <h2 id="player-dialog-title">${escapeHtml(button.dataset.playerName || "Player")}</h2>
+      <p class="detail-empty">Individual player statistics are not available for this match.</p>
+    `;
+    if (!state.playerDialog.open) state.playerDialog.showModal();
+    return;
+  }
+  renderPlayerDetails(player, match);
 }
 
 function renderStatistics(summary, match) {
@@ -652,8 +766,8 @@ function renderStatistics(summary, match) {
   const players = getPlayerStatistics(summary);
   const playerStats = players.length
     ? `<section class="player-stat-list"><h3>Player statistics</h3>
-        <div class="player-stat-row player-stat-heading"><strong>Player</strong><span>Team</span><span>${escapeHtml((players[0].labels || []).join(" · "))}</span></div>
-        ${players.map((player) => `<div class="player-stat-row"><strong>${escapeHtml(player.name)}</strong><span>${escapeHtml(player.team)}</span><span>${player.stats.map(escapeHtml).join(" · ")}</span></div>`).join("")}
+        <div class="player-stat-row player-stat-heading"><strong>Player</strong><span>Team</span><span>Available match stats</span></div>
+        ${players.map((player) => `<div class="player-stat-row"><strong><button class="player-name-button" type="button" data-player-id="${escapeHtml(player.id)}" data-player-team="${escapeHtml(player.teamId)}" data-player-name="${escapeHtml(player.name)}" aria-haspopup="dialog">${escapeHtml(player.name)}<span aria-hidden="true"> ↗</span></button></strong><span>${escapeHtml(player.team)}</span><span>${player.stats.map((stat) => `${escapeHtml(stat.name)} ${escapeHtml(stat.value)}`).join(" · ")}</span></div>`).join("")}
       </section>`
     : "";
   return `${teamStats}${playerStats}`;
@@ -1013,10 +1127,22 @@ document.querySelector("#detail-back").addEventListener("click", () => {
 });
 
 elements.detailContent.addEventListener("click", (event) => {
+  const playerButton = event.target.closest("[data-player-id], [data-player-name]");
+  if (playerButton) {
+    openPlayerDetails(playerButton);
+    return;
+  }
   const tab = event.target.closest("[data-detail-tab]");
   if (!tab) return;
   state.detailTab = tab.dataset.detailTab;
   renderMatchDetails();
+});
+
+document.querySelector(".player-dialog-close").addEventListener("click", () => {
+  state.playerDialog.close();
+});
+state.playerDialog.addEventListener("click", (event) => {
+  if (event.target === state.playerDialog) state.playerDialog.close();
 });
 
 elements.searchInput.addEventListener("input", renderMatches);

@@ -17,6 +17,11 @@ const adminElements = {
   loginForm: document.querySelector("#login-form"),
   email: document.querySelector("#login-email"),
   password: document.querySelector("#login-password"),
+  passwordReset: document.querySelector("#password-reset"),
+  passwordResetForm: document.querySelector("#password-reset-form"),
+  newPassword: document.querySelector("#new-password"),
+  confirmPassword: document.querySelector("#confirm-password"),
+  passwordResetButton: document.querySelector("#password-reset-button"),
   settingsForm: document.querySelector("#settings-form"),
   brandName: document.querySelector("#brand-name"),
   announcement: document.querySelector("#announcement"),
@@ -46,9 +51,17 @@ function validConfig() {
 
 function setSignedIn(user) {
   adminElements.login.hidden = Boolean(user);
+  adminElements.passwordReset.hidden = true;
   adminElements.settingsForm.hidden = !user;
   adminElements.notice.hidden = Boolean(user);
   if (user) adminElements.signedInEmail.textContent = `Signed in as ${user.email}`;
+}
+
+function showPasswordReset() {
+  adminElements.login.hidden = true;
+  adminElements.passwordReset.hidden = false;
+  adminElements.settingsForm.hidden = true;
+  adminElements.notice.hidden = true;
 }
 
 async function loadSettings() {
@@ -108,6 +121,33 @@ adminElements.loginForm.addEventListener("submit", async (event) => {
   adminElements.loginButton.disabled = false;
   if (error) {
     setNotice(`Sign-in failed: ${error.message}`, "error");
+    return;
+  }
+  await authorizeUser(data.user);
+});
+
+adminElements.passwordResetForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!supabaseClient) return;
+
+  const password = adminElements.newPassword.value;
+  if (password.length < 8) {
+    setNotice("Use a password with at least 8 characters.", "error");
+    return;
+  }
+  if (password !== adminElements.confirmPassword.value) {
+    setNotice("The passwords do not match.", "error");
+    return;
+  }
+
+  adminElements.passwordResetButton.disabled = true;
+  setNotice("Updating your password…");
+  const { data, error } = await supabaseClient.auth.updateUser({ password });
+  adminElements.newPassword.value = "";
+  adminElements.confirmPassword.value = "";
+  adminElements.passwordResetButton.disabled = false;
+  if (error) {
+    setNotice(`Could not update your password: ${error.message}`, "error");
     return;
   }
   await authorizeUser(data.user);
@@ -181,7 +221,11 @@ if (!validConfig()) {
       adminElements.notice.hidden = true;
     }
   });
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === "PASSWORD_RECOVERY") {
+      showPasswordReset();
+      return;
+    }
     if (session && session.user) authorizeUser(session.user);
   });
 }

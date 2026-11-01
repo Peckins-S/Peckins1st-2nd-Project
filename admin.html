@@ -53,6 +53,22 @@
         </form>
       </section>
 
+      <section class="admin-card" id="password-reset" hidden>
+        <h2>Set your admin password</h2>
+        <p>Choose a password with at least 8 characters.</p>
+        <form id="password-reset-form">
+          <label class="admin-field">
+            <span>New password</span>
+            <input id="new-password" type="password" autocomplete="new-password" minlength="8" required>
+          </label>
+          <label class="admin-field">
+            <span>Confirm new password</span>
+            <input id="confirm-password" type="password" autocomplete="new-password" minlength="8" required>
+          </label>
+          <button class="admin-primary-button" id="password-reset-button" type="submit">Set password</button>
+        </form>
+      </section>
+
       <form class="admin-form" id="settings-form" hidden>
         <section class="admin-card">
           <div class="admin-card-heading">

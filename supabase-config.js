@@ -1,5 +1,5 @@
 window.SUPABASE_CONFIG = Object.freeze({
-  url: "https://YOUR_PROJECT.supabase.co",
-  anonKey: "YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY",
+  url: "https://epmrvuucjlebneyheelx.supabase.co",
+  anonKey: "sb_publishable_ONc2GDqSz_APsVSfDkjh8g_nWmpC41a",
   adminEmail: "peckinssmart@gmail.com"
 });

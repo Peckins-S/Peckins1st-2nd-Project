@@ -170,7 +170,7 @@ if (!validConfig()) {
   adminElements.email.value = adminEmail;
   setNotice("Checking admin session…");
   supabaseClient.auth.getUser().then(({ data, error }) => {
-    if (error) {
+    if (error && error.name !== "AuthSessionMissingError") {
       setSignedIn(null);
       setNotice(`Could not check the sign-in session: ${error.message}`, "error");
       return;

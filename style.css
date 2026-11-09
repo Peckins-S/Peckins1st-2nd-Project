@@ -152,6 +152,21 @@ h1 { margin: 0; font: 600 28px "Space Grotesk", sans-serif; letter-spacing: -.8p
 .admin-card-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 17px; }
 .admin-card-heading h2, .admin-card > h2 { margin: 4px 0 0; font: 600 18px "Space Grotesk", sans-serif; }
 .admin-card-kicker { margin: 0; color: var(--green); font: 10px "DM Mono", monospace; letter-spacing: .1em; }
+.admin-info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+.admin-info-card { min-width: 0; margin: 0; }
+.admin-info-card > .admin-help { margin: 12px 0 0 !important; }
+.admin-stat-row { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 13px; }
+.admin-stat-row > span { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+.admin-stat-row strong { color: var(--text); font: 600 17px "DM Mono", monospace; }
+.admin-summary-list { display: grid; gap: 9px; margin: 14px 0 0; }
+.admin-summary-list > div { display: grid; grid-template-columns: minmax(90px, .75fr) minmax(0, 1.25fr); gap: 10px; font-size: 12px; }
+.admin-summary-list dt { color: var(--muted); }
+.admin-summary-list dd { min-width: 0; margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.admin-match-list { display: grid; gap: 7px; margin: 12px 0 0; padding: 0; list-style: none; }
+.admin-match-list:empty { display: none; }
+.admin-match-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding-top: 7px; border-top: 1px solid var(--border); color: var(--text); font-size: 11px; }
+.admin-match-list small { color: var(--muted); text-align: right; }
+.admin-migration-notice { margin: 0 0 16px; padding: 12px 14px; border: 1px solid #77663f; border-radius: 6px; background: #29271e; color: #efe0b6; font-size: 12px; line-height: 1.5; }
 .admin-field { display: flex; flex-direction: column; gap: 7px; margin: 0 0 16px; color: var(--text); font-size: 12px; font-weight: 600; }
 .admin-field:last-child { margin-bottom: 0; }
 .admin-field > span small { margin-left: 6px; color: var(--muted); font-size: 10px; font-weight: 400; }
@@ -159,6 +174,8 @@ h1 { margin: 0; font: 600 28px "Space Grotesk", sans-serif; letter-spacing: -.8p
 .admin-field input:focus, .admin-field textarea:focus { border-color: #648763; }
 .admin-field textarea { resize: vertical; }
 .admin-help { margin: -7px 0 15px !important; }
+.admin-check-field { display: flex; align-items: center; gap: 9px; margin: 4px 0 17px; color: var(--text); font-size: 12px; }
+.admin-check-field input { width: 16px; height: 16px; accent-color: var(--green); }
 .admin-league-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
 .admin-league-option { display: flex; align-items: center; gap: 9px; min-height: 42px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text); cursor: pointer; font-size: 12px; }
 .admin-league-option:has(input:checked) { border-color: #4f7951; background: #202c22; }
@@ -180,6 +197,8 @@ h1 { margin: 0; font: 600 28px "Space Grotesk", sans-serif; letter-spacing: -.8p
 @media (max-width: 600px) {
   .admin-shell { width: min(100% - 24px, 820px); padding-top: 26px; }
   .admin-card { padding: 16px 13px; }
+  .admin-info-grid { grid-template-columns: 1fr; }
+  .admin-info-card { padding: 16px 13px; }
   .admin-league-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-form-actions { align-items: stretch; flex-direction: column; }
   .admin-form-actions > div { justify-content: space-between; }
@@ -360,6 +379,15 @@ h1 { font-size: 36px; }
 .player-name-button span { color: var(--green); font-size: 10px; }
 .player-dialog { width: min(520px, calc(100% - 28px)); max-height: min(760px, calc(100% - 36px)); padding: 0; overflow: auto; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); }
 .player-dialog::backdrop { background: rgb(0 0 0 / 72%); backdrop-filter: blur(3px); }
+.ad-dialog { width: min(420px, calc(100% - 28px)); padding: 0; border: 1px solid #45664a; border-radius: 9px; background: var(--surface); color: var(--text); }
+.ad-dialog::backdrop { background: rgb(0 0 0 / 68%); backdrop-filter: blur(3px); }
+.ad-dialog-content { position: relative; padding: 26px; }
+.ad-dialog-close { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface-hover); color: var(--text); cursor: pointer; font-size: 22px; line-height: 1; }
+.ad-dialog-label { margin: 0 42px 10px 0; color: var(--green); font: 10px "DM Mono", monospace; letter-spacing: .1em; text-transform: uppercase; }
+.ad-dialog h2 { margin: 0 38px 10px 0; font: 600 22px "Space Grotesk", sans-serif; }
+.ad-dialog-message { margin: 0 0 20px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.ad-dialog-link { display: inline-flex; min-height: 38px; align-items: center; padding: 8px 14px; border: 1px solid #72bd70; border-radius: 5px; background: var(--green); color: #102012; font-size: 12px; font-weight: 700; text-decoration: none; }
+.ad-dialog-link:hover { background: #a7efa6; }
 .player-dialog-content { position: relative; padding: 25px; }
 .player-dialog-close { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 50%; background: var(--surface-hover); color: var(--text); cursor: pointer; font-size: 22px; line-height: 1; }
 .player-detail-kicker { margin: 0 42px 8px 0; color: var(--green); font: 10px "DM Mono", monospace; text-transform: uppercase; }

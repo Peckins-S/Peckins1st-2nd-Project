@@ -94,9 +94,21 @@
           </div>
           <div id="match-detail-content" aria-live="polite"></div>
         </section>
-        <footer class="footer">No streams, just the fixtures and scores. <a href="admin.html">Admin</a></footer>
+        <footer class="footer">
+          No streams, just fixtures and scores. Anonymous session counts help us understand site use.
+          <a href="admin.html">Admin</a>
+        </footer>
       </section>
     </main>
+    <dialog class="ad-dialog" id="ad-dialog" aria-labelledby="ad-dialog-title">
+      <div class="ad-dialog-content">
+        <button class="ad-dialog-close" id="ad-dialog-close" type="button" aria-label="Close advertisement">×</button>
+        <p class="ad-dialog-label">Advertisement</p>
+        <h2 id="ad-dialog-title"></h2>
+        <p class="ad-dialog-message" id="ad-dialog-message"></p>
+        <a class="ad-dialog-link" id="ad-dialog-link" target="_blank" rel="noopener noreferrer"></a>
+      </div>
+    </dialog>
     <dialog class="player-dialog" id="player-dialog" aria-labelledby="player-dialog-title">
       <div class="player-dialog-content">
         <button class="player-dialog-close" type="button" aria-label="Close player details">×</button>

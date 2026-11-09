@@ -18,6 +18,13 @@ const featuredLeagueChoices = [
   { id: "745", name: "Argentina Primera División" }
 ];
 const defaultFeaturedCompetitionIds = featuredLeagueChoices.map((league) => league.id);
+const defaultSitePromotion = {
+  ad_enabled: true,
+  ad_title: "Your matchday, all in one place",
+  ad_message: "Follow live scores, upcoming fixtures, and league tables on 90+minutes.",
+  ad_cta_label: "Explore matches",
+  ad_url: "https://peckins1st-2nd-project.vercel.app/#fixtures"
+};
 
 const fotmobLeagueStatsUrls = {
   "700": "https://www.fotmob.com/leagues/47/stats/premier-league/players",
@@ -153,7 +160,12 @@ const elements = {
   detailView: document.querySelector("#match-detail-view"),
   detailContent: document.querySelector("#match-detail-content"),
   detailUpdated: document.querySelector("#detail-updated"),
-  siteAnnouncement: document.querySelector("#site-announcement")
+  siteAnnouncement: document.querySelector("#site-announcement"),
+  adDialog: document.querySelector("#ad-dialog"),
+  adDialogLabel: document.querySelector(".ad-dialog-label"),
+  adDialogTitle: document.querySelector("#ad-dialog-title"),
+  adDialogMessage: document.querySelector("#ad-dialog-message"),
+  adDialogLink: document.querySelector("#ad-dialog-link")
 };
 
 function dateKey(date) {
@@ -331,6 +343,74 @@ function getSupabaseConfig() {
   return config;
 }
 
+function maybeShowSiteAd(settings) {
+  if (!settings.ad_enabled || !elements.adDialog || !settings.ad_title || !settings.ad_message
+    || !settings.ad_cta_label || !settings.ad_url) return;
+
+  let destination;
+  try {
+    destination = new URL(settings.ad_url);
+  } catch {
+    return;
+  }
+  if (destination.protocol !== "https:") return;
+
+  const storageKey = "90plus-ad-last-shown";
+  try {
+    const lastShown = Number(localStorage.getItem(storageKey));
+    if (Number.isFinite(lastShown) && Date.now() - lastShown < 24 * 60 * 60 * 1000) return;
+  } catch (error) {
+    console.error("Could not check the popup ad frequency setting.", error);
+    return;
+  }
+
+  elements.adDialogTitle.textContent = settings.ad_title;
+  elements.adDialogMessage.textContent = settings.ad_message;
+  elements.adDialogLink.textContent = settings.ad_cta_label;
+  elements.adDialogLink.href = destination.href;
+  elements.adDialogLabel.textContent = destination.host === "peckins1st-2nd-project.vercel.app"
+    ? "90+minutes featured"
+    : "Advertisement";
+  const showAd = () => {
+    if (elements.adDialog.open) return;
+    if (document.hidden) {
+      document.addEventListener("visibilitychange", showAd, { once: true });
+      return;
+    }
+    try {
+      elements.adDialog.showModal();
+      localStorage.setItem(storageKey, String(Date.now()));
+    } catch (error) {
+      console.error("Could not show the popup ad.", error);
+    }
+  };
+  window.setTimeout(showAd, 12000);
+}
+
+async function recordSiteVisit() {
+  const config = getSupabaseConfig();
+  if (!config) return;
+  try {
+    let sessionId = sessionStorage.getItem("90plus-visit-session");
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      sessionStorage.setItem("90plus-visit-session", sessionId);
+    }
+    const response = await fetch(`${config.url.replace(/\/+$/, "")}/rest/v1/rpc/record_site_visit`, {
+      method: "POST",
+      headers: {
+        apikey: config.anonKey,
+        Authorization: `Bearer ${config.anonKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ p_session_id: sessionId })
+    });
+    if (!response.ok) throw new Error(`Visitor count request failed (${response.status}).`);
+  } catch (error) {
+    console.error("Could not record an anonymous visitor session.", error);
+  }
+}
+
 function applySiteSettings(settings) {
   if (!settings || typeof settings !== "object") return;
   const brandName = typeof settings.brand_name === "string" ? settings.brand_name.trim() : "";
@@ -352,24 +432,42 @@ function applySiteSettings(settings) {
       .filter((id) => typeof id === "string" && defaultFeaturedCompetitionIds.includes(id));
     if (selected.length) visibleCompetitionIds = new Set(selected);
   }
+  maybeShowSiteAd(settings);
 }
 
 async function loadPublicSiteSettings() {
   const config = getSupabaseConfig();
-  if (!config) return;
+  if (!config) return false;
   try {
     const baseUrl = config.url.replace(/\/+$/, "");
-    const response = await fetch(`${baseUrl}/rest/v1/site_settings?id=eq.true&select=brand_name,announcement,featured_competitions`, {
+    let extendedSettingsLoaded = true;
+    let response = await fetch(`${baseUrl}/rest/v1/site_settings?id=eq.true&select=brand_name,announcement,featured_competitions,ad_enabled,ad_title,ad_message,ad_cta_label,ad_url`, {
       headers: {
         apikey: config.anonKey,
         Authorization: `Bearer ${config.anonKey}`
       }
     });
+    if (response.status === 400) {
+      response = await fetch(`${baseUrl}/rest/v1/site_settings?id=eq.true&select=brand_name,announcement,featured_competitions`, {
+        headers: {
+          apikey: config.anonKey,
+          Authorization: `Bearer ${config.anonKey}`
+        }
+      });
+      extendedSettingsLoaded = false;
+      if (response.ok) console.warn("Popup ads need the updated site_settings columns from supabase-schema.sql.");
+    }
     if (!response.ok) throw new Error(`Settings request failed (${response.status}).`);
     const rows = await response.json();
-    if (Array.isArray(rows) && rows[0]) applySiteSettings(rows[0]);
+    if (Array.isArray(rows) && rows[0]) {
+      applySiteSettings(extendedSettingsLoaded
+        ? rows[0]
+        : { ...rows[0], ...defaultSitePromotion });
+    }
+    return extendedSettingsLoaded && Array.isArray(rows) && Boolean(rows[0]);
   } catch (error) {
     console.error("Could not load shared site settings.", error);
+    return false;
   }
 }
 
@@ -1225,14 +1323,18 @@ elements.refreshButton.addEventListener("click", () => {
   else loadData();
 });
 
+document.querySelector("#ad-dialog-close").addEventListener("click", () => {
+  elements.adDialog.close();
+});
+
 renderHeaderDate();
 renderLeagueFilters();
 renderDateStrip();
 const initialPage = location.hash.slice(1);
 if (["scores", "fixtures", "standings", "stats"].includes(initialPage)) selectPage(initialPage);
 else renderPage();
-loadPublicSiteSettings().then(loadData, (error) => {
-  console.error("Could not initialize shared site settings.", error);
+loadPublicSiteSettings().then((settingsReady) => {
+  if (settingsReady) recordSiteVisit();
   loadData();
 });
 

@@ -22,9 +22,32 @@ const adminElements = {
   newPassword: document.querySelector("#new-password"),
   confirmPassword: document.querySelector("#confirm-password"),
   passwordResetButton: document.querySelector("#password-reset-button"),
+  dashboard: document.querySelector("#admin-dashboard"),
+  dashboardRefresh: document.querySelector("#dashboard-refresh"),
+  liveCount: document.querySelector("#dashboard-live-count"),
+  upcomingCount: document.querySelector("#dashboard-upcoming-count"),
+  finishedCount: document.querySelector("#dashboard-finished-count"),
+  matchStatus: document.querySelector("#dashboard-match-status"),
+  matchList: document.querySelector("#dashboard-match-list"),
+  feedStatus: document.querySelector("#dashboard-feed-status"),
+  settingsUpdated: document.querySelector("#dashboard-settings-updated"),
+  summaryBrand: document.querySelector("#dashboard-brand-name"),
+  summaryAnnouncement: document.querySelector("#dashboard-announcement"),
+  featuredCount: document.querySelector("#dashboard-featured-count"),
+  adStatus: document.querySelector("#dashboard-ad-status"),
+  visitsToday: document.querySelector("#dashboard-visits-today"),
+  visitsWeek: document.querySelector("#dashboard-visits-week"),
+  visitsStatus: document.querySelector("#dashboard-visits-status"),
+  migrationNotice: document.querySelector("#admin-migration-notice"),
   settingsForm: document.querySelector("#settings-form"),
   brandName: document.querySelector("#brand-name"),
   announcement: document.querySelector("#announcement"),
+  adSettings: document.querySelector("#ad-settings-card"),
+  adEnabled: document.querySelector("#ad-enabled"),
+  adTitle: document.querySelector("#ad-title"),
+  adMessage: document.querySelector("#ad-message"),
+  adCtaLabel: document.querySelector("#ad-cta-label"),
+  adUrl: document.querySelector("#ad-url"),
   leagueOptions: document.querySelector("#league-options"),
   signedInEmail: document.querySelector("#signed-in-email"),
   loginButton: document.querySelector("#login-button"),
@@ -33,6 +56,7 @@ const adminElements = {
 };
 
 let supabaseClient;
+let hasExtendedSettings = true;
 
 function setNotice(message, type = "info") {
   adminElements.notice.textContent = message;
@@ -52,6 +76,7 @@ function validConfig() {
 function setSignedIn(user) {
   adminElements.login.hidden = Boolean(user);
   adminElements.passwordReset.hidden = true;
+  adminElements.dashboard.hidden = !user;
   adminElements.settingsForm.hidden = !user;
   adminElements.notice.hidden = Boolean(user);
   if (user) adminElements.signedInEmail.textContent = `Signed in as ${user.email}`;
@@ -66,14 +91,29 @@ function showPasswordReset() {
 
 async function loadSettings() {
   setNotice("Loading shared settings…");
-  const { data, error } = await supabaseClient
+  let { data, error } = await supabaseClient
     .from("site_settings")
-    .select("brand_name, announcement, featured_competitions")
+    .select("brand_name, announcement, featured_competitions, updated_at, ad_enabled, ad_title, ad_message, ad_cta_label, ad_url")
     .eq("id", true)
     .maybeSingle();
   if (error) {
-    setNotice(`Could not load settings: ${error.message}`, "error");
-    return;
+    const legacyResult = await supabaseClient
+      .from("site_settings")
+      .select("brand_name, announcement, featured_competitions, updated_at")
+      .eq("id", true)
+      .maybeSingle();
+    if (legacyResult.error) {
+      setNotice(`Could not load settings: ${legacyResult.error.message}`, "error");
+      return;
+    }
+    data = legacyResult.data;
+    hasExtendedSettings = false;
+    adminElements.adSettings.hidden = true;
+    adminElements.migrationNotice.hidden = false;
+  } else {
+    hasExtendedSettings = true;
+    adminElements.adSettings.hidden = false;
+    adminElements.migrationNotice.hidden = true;
   }
   if (!data) {
     setNotice("Settings row is missing. Run supabase-schema.sql in the Supabase SQL Editor.", "error");
@@ -82,10 +122,123 @@ async function loadSettings() {
 
   adminElements.brandName.value = data.brand_name || "90+minutes";
   adminElements.announcement.value = data.announcement || "";
+  adminElements.adEnabled.checked = Boolean(data.ad_enabled);
+  adminElements.adTitle.value = data.ad_title || "";
+  adminElements.adMessage.value = data.ad_message || "";
+  adminElements.adCtaLabel.value = data.ad_cta_label || "";
+  adminElements.adUrl.value = data.ad_url || "";
   const selected = new Set(data.featured_competitions || []);
   adminElements.leagueOptions.querySelectorAll('input[name="featured-competition"]')
     .forEach((input) => { input.checked = selected.has(input.value); });
+  updateSettingsSummary(data);
   adminElements.notice.hidden = true;
+  await Promise.all([loadMatchDashboard(), loadVisitorStats()]);
+}
+
+function updateSettingsSummary(settings) {
+  const selectedNames = (settings.featured_competitions || [])
+    .map((id) => adminLeagues.find(([leagueId]) => leagueId === id))
+    .filter(Boolean)
+    .map(([, name]) => name);
+  adminElements.summaryBrand.textContent = settings.brand_name || "90+minutes";
+  adminElements.summaryAnnouncement.textContent = settings.announcement || "None";
+  adminElements.featuredCount.textContent = selectedNames.join(", ") || "None";
+  adminElements.adStatus.textContent = settings.ad_enabled ? "Enabled" : "Disabled";
+  if (!settings.updated_at) {
+    adminElements.settingsUpdated.textContent = "Not available";
+    return;
+  }
+  const updatedAt = new Date(settings.updated_at);
+  adminElements.settingsUpdated.textContent = Number.isNaN(updatedAt.getTime())
+    ? "Not available"
+    : updatedAt.toLocaleString();
+}
+
+function localDateKey(date) {
+  return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+}
+
+async function loadMatchDashboard() {
+  adminElements.matchStatus.textContent = "Loading today’s matches…";
+  adminElements.feedStatus.textContent = "Checking…";
+  adminElements.matchList.replaceChildren();
+  const selectedIds = new Set([...adminElements.leagueOptions
+    .querySelectorAll('input[name="featured-competition"]:checked')]
+    .map((input) => input.value));
+  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?dates=${localDateKey(new Date())}&limit=1000`;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Feed request failed (${response.status}).`);
+    const data = await response.json();
+    const matches = (data.events || []).filter((event) => {
+      const leagueUid = event.uid && event.uid.match(/~l:(\d+)/);
+      return leagueUid && selectedIds.has(leagueUid[1]);
+    }).map((event) => {
+      const competition = event.competitions && event.competitions[0];
+      const competitors = competition && competition.competitors || [];
+      const home = competitors.find((team) => team.homeAway === "home") || competitors[0] || {};
+      const away = competitors.find((team) => team.homeAway === "away") || competitors[1] || {};
+      const status = event.status && event.status.type || {};
+      return {
+        home: home.team && (home.team.displayName || home.team.name) || "Home",
+        away: away.team && (away.team.displayName || away.team.name) || "Away",
+        score: status.state !== "pre" ? `${home.score ?? "0"}–${away.score ?? "0"}` : "",
+        state: status.state || "pre",
+        detail: status.shortDetail || status.detail || new Date(event.date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+      };
+    });
+
+    const counts = {
+      live: matches.filter((match) => match.state === "in").length,
+      upcoming: matches.filter((match) => match.state === "pre").length,
+      finished: matches.filter((match) => match.state === "post").length
+    };
+    adminElements.liveCount.textContent = String(counts.live);
+    adminElements.upcomingCount.textContent = String(counts.upcoming);
+    adminElements.finishedCount.textContent = String(counts.finished);
+    adminElements.matchStatus.textContent = matches.length
+      ? `${matches.length} match${matches.length === 1 ? "" : "es"} across your featured competitions.`
+      : "No matches found today for the featured competitions.";
+
+    matches.slice(0, 20).forEach((match) => {
+      const item = document.createElement("li");
+      const teams = document.createElement("span");
+      const detail = document.createElement("small");
+      teams.textContent = `${match.home} vs ${match.away}`;
+      detail.textContent = [match.score, match.detail].filter(Boolean).join(" · ");
+      item.append(teams, detail);
+      adminElements.matchList.append(item);
+    });
+    if (matches.length > 20) {
+      const remainder = document.createElement("li");
+      remainder.textContent = `${matches.length - 20} more matches`;
+      adminElements.matchList.append(remainder);
+    }
+    adminElements.feedStatus.textContent = `Online · refreshed ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  } catch (error) {
+    adminElements.matchStatus.textContent = `Could not load today’s matches: ${error.message}`;
+    adminElements.feedStatus.textContent = "Unavailable";
+  }
+}
+
+async function loadVisitorStats() {
+  const today = new Date().toISOString().slice(0, 10);
+  const weekStart = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [todayResult, weekResult] = await Promise.all([
+    supabaseClient.from("site_visits").select("visit_date", { count: "exact", head: true }).eq("visit_date", today),
+    supabaseClient.from("site_visits").select("visit_date", { count: "exact", head: true }).gte("visit_date", weekStart)
+  ]);
+  if (todayResult.error || weekResult.error) {
+    const error = todayResult.error || weekResult.error;
+    adminElements.visitsToday.textContent = "—";
+    adminElements.visitsWeek.textContent = "—";
+    adminElements.visitsStatus.textContent = `Visitor stats unavailable: ${error.message}`;
+    return;
+  }
+  adminElements.visitsToday.textContent = String(todayResult.count || 0);
+  adminElements.visitsWeek.textContent = String(weekResult.count || 0);
+  adminElements.visitsStatus.textContent = "Anonymous browser sessions; no IP addresses or personal details are stored.";
 }
 
 async function authorizeUser(user) {
@@ -169,23 +322,55 @@ adminElements.settingsForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  const settings = {
+    id: true,
+    brand_name: brandName,
+    announcement: adminElements.announcement.value.trim(),
+    featured_competitions: featuredCompetitions,
+    updated_at: new Date().toISOString()
+  };
+  if (hasExtendedSettings) {
+    const adUrl = adminElements.adUrl.value.trim();
+    if (adminElements.adEnabled.checked) {
+      let secureAdUrl = false;
+      try {
+        secureAdUrl = new URL(adUrl).protocol === "https:";
+      } catch {
+        secureAdUrl = false;
+      }
+      if (!adminElements.adTitle.value.trim() || !adminElements.adMessage.value.trim()
+        || !adminElements.adCtaLabel.value.trim() || !secureAdUrl) {
+        setNotice("For an enabled ad, add a headline, message, button label, and valid HTTPS destination.", "error");
+        return;
+      }
+    }
+    Object.assign(settings, {
+      ad_enabled: adminElements.adEnabled.checked,
+      ad_title: adminElements.adTitle.value.trim(),
+      ad_message: adminElements.adMessage.value.trim(),
+      ad_cta_label: adminElements.adCtaLabel.value.trim(),
+      ad_url: adUrl
+    });
+  }
+
   adminElements.saveButton.disabled = true;
   setNotice("Saving shared settings…");
   const { error } = await supabaseClient
     .from("site_settings")
-    .upsert({
-      id: true,
-      brand_name: brandName,
-      announcement: adminElements.announcement.value.trim(),
-      featured_competitions: featuredCompetitions,
-      updated_at: new Date().toISOString()
-    }, { onConflict: "id" });
+    .upsert(settings, { onConflict: "id" });
   adminElements.saveButton.disabled = false;
   if (error) {
     setNotice(`Could not save settings: ${error.message}`, "error");
     return;
   }
+  updateSettingsSummary(settings);
   setNotice("Settings saved. They will appear for all visitors on their next page load.", "success");
+});
+
+adminElements.dashboardRefresh.addEventListener("click", async () => {
+  adminElements.dashboardRefresh.disabled = true;
+  await Promise.all([loadMatchDashboard(), loadVisitorStats()]);
+  adminElements.dashboardRefresh.disabled = false;
 });
 
 adminElements.signOutButton.addEventListener("click", async () => {
@@ -194,6 +379,7 @@ adminElements.signOutButton.addEventListener("click", async () => {
     setNotice(`Could not sign out: ${error.message}`, "error");
     return;
   }
+  adminElements.dashboard.hidden = true;
   adminElements.settingsForm.hidden = true;
   adminElements.login.hidden = false;
   adminElements.email.value = "";

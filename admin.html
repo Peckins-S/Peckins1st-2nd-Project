@@ -69,6 +69,52 @@
         </form>
       </section>
 
+      <section class="admin-dashboard" id="admin-dashboard" hidden aria-label="Admin dashboard">
+        <div class="admin-card-heading">
+          <div><p class="admin-card-kicker">OVERVIEW</p><h2>Today at a glance</h2></div>
+          <button class="admin-secondary-button" id="dashboard-refresh" type="button">Refresh overview</button>
+        </div>
+        <div class="admin-info-grid">
+          <article class="admin-card admin-info-card">
+            <p class="admin-card-kicker">MATCHES TODAY</p>
+            <div class="admin-stat-row">
+              <span>Live <strong id="dashboard-live-count">—</strong></span>
+              <span>Upcoming <strong id="dashboard-upcoming-count">—</strong></span>
+              <span>Finished <strong id="dashboard-finished-count">—</strong></span>
+            </div>
+            <p class="admin-help" id="dashboard-match-status">Checking the ESPN match feed…</p>
+            <ul class="admin-match-list" id="dashboard-match-list" aria-live="polite"></ul>
+          </article>
+          <article class="admin-card admin-info-card">
+            <p class="admin-card-kicker">SITE STATUS</p>
+            <dl class="admin-summary-list">
+              <div><dt>Match feed</dt><dd id="dashboard-feed-status">Checking…</dd></div>
+              <div><dt>Settings saved</dt><dd id="dashboard-settings-updated">—</dd></div>
+            </dl>
+          </article>
+          <article class="admin-card admin-info-card">
+            <p class="admin-card-kicker">SITE SETTINGS</p>
+            <dl class="admin-summary-list">
+              <div><dt>Site name</dt><dd id="dashboard-brand-name">—</dd></div>
+              <div><dt>Announcement</dt><dd id="dashboard-announcement">None</dd></div>
+              <div><dt>Featured competitions</dt><dd id="dashboard-featured-count">—</dd></div>
+              <div><dt>Popup ad</dt><dd id="dashboard-ad-status">—</dd></div>
+            </dl>
+          </article>
+          <article class="admin-card admin-info-card">
+            <p class="admin-card-kicker">VISITORS</p>
+            <div class="admin-stat-row">
+              <span>Today <strong id="dashboard-visits-today">—</strong></span>
+              <span>Last 7 days <strong id="dashboard-visits-week">—</strong></span>
+            </div>
+            <p class="admin-help" id="dashboard-visits-status">Anonymous browser sessions; no IP addresses or personal details are stored.</p>
+          </article>
+        </div>
+        <p class="admin-migration-notice" id="admin-migration-notice" hidden>
+          Apply the updated <code>supabase-schema.sql</code> in Supabase SQL Editor to enable visitor statistics and popup ads.
+        </p>
+      </section>
+
       <form class="admin-form" id="settings-form" hidden>
         <section class="admin-card">
           <div class="admin-card-heading">
@@ -81,6 +127,33 @@
           <label class="admin-field">
             <span>Announcement banner <small>Optional · 180 characters max</small></span>
             <textarea id="announcement" name="announcement" maxlength="180" rows="3" placeholder="Share a short update with visitors"></textarea>
+          </label>
+        </section>
+
+        <section class="admin-card" id="ad-settings-card">
+          <div class="admin-card-heading">
+            <div><p class="admin-card-kicker">PUBLIC SITE</p><h2>Occasional popup ad</h2></div>
+          </div>
+          <p class="admin-help">A 90+minutes promo is active by default. Replace it with sponsor details or turn it off. Visitors can dismiss it; it appears at most once every 24 hours per browser.</p>
+          <label class="admin-check-field">
+            <input id="ad-enabled" name="ad-enabled" type="checkbox">
+            <span>Show popup ad on the public website</span>
+          </label>
+          <label class="admin-field">
+            <span>Ad headline</span>
+            <input id="ad-title" name="ad-title" type="text" maxlength="60" placeholder="Sponsored message">
+          </label>
+          <label class="admin-field">
+            <span>Ad message</span>
+            <textarea id="ad-message" name="ad-message" maxlength="180" rows="3" placeholder="Write the short ad message"></textarea>
+          </label>
+          <label class="admin-field">
+            <span>Button label</span>
+            <input id="ad-cta-label" name="ad-cta-label" type="text" maxlength="24" placeholder="Learn more">
+          </label>
+          <label class="admin-field">
+            <span>Destination URL <small>HTTPS links only</small></span>
+            <input id="ad-url" name="ad-url" type="url" maxlength="500" placeholder="https://example.com">
           </label>
         </section>
 

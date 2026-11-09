@@ -8,6 +8,7 @@
     <title>90+minutes — Soccer Fixtures</title>
     <link rel="stylesheet" href="style.css">
     <script src="supabase-config.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -27,6 +28,7 @@
         <a class="primary-link selected" href="#fixtures" data-page="fixtures">Fixtures</a>
         <a class="primary-link" href="#standings" data-page="standings">Standings</a>
         <a class="primary-link" href="#stats" data-page="stats">Stats</a>
+        <a class="primary-link" id="admin-nav-link" href="#admin" data-page="admin" hidden>Admin</a>
       </nav>
       <div class="topbar-right"><span class="feed-dot"></span><span class="date-label" id="header-date"></span></div>
     </header>
@@ -96,10 +98,34 @@
         </section>
         <footer class="footer">
           No streams, just fixtures and scores. Anonymous session counts help us understand site use.
-          <a href="admin.html">Admin</a>
+          <a href="#admin-login" id="admin-login-link">Admin sign in</a>
         </footer>
       </section>
     </main>
+    <main class="admin-embedded-shell" id="admin-panel-view" hidden>
+      <iframe id="admin-panel-frame" title="90+minutes admin panel" loading="lazy"></iframe>
+    </main>
+    <dialog class="admin-auth-dialog" id="admin-auth-dialog" aria-labelledby="admin-auth-title">
+      <div class="admin-auth-content">
+        <button class="player-dialog-close" id="admin-auth-close" type="button" aria-label="Close admin sign in">×</button>
+        <p class="admin-card-kicker">90+MINUTES / CONTROL ROOM</p>
+        <h2 id="admin-auth-title">Admin sign in</h2>
+        <p class="admin-auth-help">Sign in with the authorized site admin account to open the control panel.</p>
+        <p class="admin-auth-notice" id="admin-auth-notice" role="status" aria-live="polite" hidden></p>
+        <form id="admin-auth-form">
+          <label class="admin-field">
+            <span>Email</span>
+            <input id="admin-auth-email" type="email" autocomplete="username" required>
+          </label>
+          <label class="admin-field">
+            <span>Password</span>
+            <input id="admin-auth-password" type="password" autocomplete="current-password" required>
+          </label>
+          <button class="admin-primary-button" id="admin-auth-submit" type="submit">Sign in</button>
+          <button class="admin-reset-link" id="admin-reset-request" type="button">Forgot password?</button>
+        </form>
+      </div>
+    </dialog>
     <dialog class="ad-dialog" id="ad-dialog" aria-labelledby="ad-dialog-title">
       <div class="ad-dialog-content">
         <button class="ad-dialog-close" id="ad-dialog-close" type="button" aria-label="Close advertisement">×</button>

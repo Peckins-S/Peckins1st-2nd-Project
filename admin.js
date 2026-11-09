@@ -1,3 +1,7 @@
+if (new URLSearchParams(location.search).get("embedded") === "1") {
+  document.body.classList.add("embedded-admin-page");
+}
+
 const adminConfig = window.SUPABASE_CONFIG;
 const adminEmail = "peckinssmart@gmail.com";
 const adminLeagues = [
@@ -74,12 +78,13 @@ function validConfig() {
 }
 
 function setSignedIn(user) {
-  adminElements.login.hidden = Boolean(user);
+  const isAdmin = Boolean(user && (user.email || "").toLowerCase() === adminEmail);
+  adminElements.login.hidden = isAdmin;
   adminElements.passwordReset.hidden = true;
-  adminElements.dashboard.hidden = !user;
-  adminElements.settingsForm.hidden = !user;
-  adminElements.notice.hidden = Boolean(user);
-  if (user) adminElements.signedInEmail.textContent = `Signed in as ${user.email}`;
+  adminElements.dashboard.hidden = !isAdmin;
+  adminElements.settingsForm.hidden = !isAdmin;
+  adminElements.notice.hidden = isAdmin;
+  if (isAdmin) adminElements.signedInEmail.textContent = `Signed in as ${user.email}`;
 }
 
 function showPasswordReset() {
@@ -243,8 +248,8 @@ async function loadVisitorStats() {
 
 async function authorizeUser(user) {
   if (!user || (user.email || "").toLowerCase() !== adminEmail) {
-    await supabaseClient.auth.signOut();
     setSignedIn(null);
+    await supabaseClient.auth.signOut();
     setNotice(`This panel is restricted to ${adminEmail}.`, "error");
     return;
   }
@@ -413,5 +418,6 @@ if (!validConfig()) {
       return;
     }
     if (session && session.user) authorizeUser(session.user);
+    else setSignedIn(null);
   });
 }

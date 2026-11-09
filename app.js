@@ -25,6 +25,7 @@ const defaultSitePromotion = {
   ad_cta_label: "Explore matches",
   ad_url: "https://peckins1st-2nd-project.vercel.app/#fixtures"
 };
+const siteAdminEmail = "peckinssmart@gmail.com";
 
 const fotmobLeagueStatsUrls = {
   "700": "https://www.fotmob.com/leagues/47/stats/premier-league/players",
@@ -139,6 +140,18 @@ const state = {
 };
 
 const elements = {
+  appLayout: document.querySelector("#fixtures"),
+  adminNavLink: document.querySelector("#admin-nav-link"),
+  adminLoginLink: document.querySelector("#admin-login-link"),
+  adminAuthDialog: document.querySelector("#admin-auth-dialog"),
+  adminAuthForm: document.querySelector("#admin-auth-form"),
+  adminAuthEmail: document.querySelector("#admin-auth-email"),
+  adminAuthPassword: document.querySelector("#admin-auth-password"),
+  adminAuthNotice: document.querySelector("#admin-auth-notice"),
+  adminAuthSubmit: document.querySelector("#admin-auth-submit"),
+  adminResetRequest: document.querySelector("#admin-reset-request"),
+  adminPanelView: document.querySelector("#admin-panel-view"),
+  adminPanelFrame: document.querySelector("#admin-panel-frame"),
   headerDate: document.querySelector("#header-date"),
   leagueFilters: document.querySelector("#league-filters"),
   dateStrip: document.querySelector("#date-strip"),
@@ -167,6 +180,8 @@ const elements = {
   adDialogMessage: document.querySelector("#ad-dialog-message"),
   adDialogLink: document.querySelector("#ad-dialog-link")
 };
+let siteAdminClient = null;
+let signedInSiteAdmin = false;
 
 function dateKey(date) {
   return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
@@ -342,6 +357,112 @@ function getSupabaseConfig() {
   }
   return config;
 }
+
+function setSiteAdminUser(user) {
+  signedInSiteAdmin = Boolean(user && (user.email || "").toLowerCase() === siteAdminEmail);
+  elements.adminNavLink.hidden = !signedInSiteAdmin;
+  elements.adminLoginLink.textContent = signedInSiteAdmin ? "Admin panel" : "Admin sign in";
+  if (!signedInSiteAdmin) {
+    elements.adminPanelFrame.src = "about:blank";
+    elements.adminPanelView.hidden = true;
+    elements.appLayout.hidden = false;
+    if (state.page === "admin") {
+      state.page = "fixtures";
+      history.replaceState(null, "", "#fixtures");
+      renderPage();
+    }
+  } else if (location.hash === "#admin") {
+    selectPage("admin");
+  }
+}
+
+function showAdminAuthNotice(message) {
+  elements.adminAuthNotice.textContent = message;
+  elements.adminAuthNotice.hidden = false;
+}
+
+async function initializeSiteAdmin() {
+  const config = getSupabaseConfig();
+  if (!config || !window.supabase || typeof window.supabase.createClient !== "function") return;
+
+  siteAdminClient = window.supabase.createClient(config.url, config.anonKey);
+  elements.adminAuthEmail.value = siteAdminEmail;
+  const { data, error } = await siteAdminClient.auth.getUser();
+  if (error && error.name !== "AuthSessionMissingError") {
+    console.error("Could not check the site admin session.", error);
+  }
+  setSiteAdminUser(data && data.user);
+  siteAdminClient.auth.onAuthStateChange((_event, session) => {
+    setSiteAdminUser(session && session.user);
+  });
+}
+
+elements.adminNavLink.addEventListener("click", (event) => {
+  event.preventDefault();
+  if (signedInSiteAdmin) {
+    history.replaceState(null, "", "#admin");
+    selectPage("admin");
+  }
+});
+
+elements.adminLoginLink.addEventListener("click", (event) => {
+  event.preventDefault();
+  if (signedInSiteAdmin) {
+    history.replaceState(null, "", "#admin");
+    selectPage("admin");
+    return;
+  }
+  elements.adminAuthNotice.hidden = true;
+  elements.adminAuthDialog.showModal();
+});
+
+document.querySelector("#admin-auth-close").addEventListener("click", () => {
+  elements.adminAuthDialog.close();
+});
+
+elements.adminAuthForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!siteAdminClient) {
+    showAdminAuthNotice("Admin sign-in is unavailable. Check your connection and try again.");
+    return;
+  }
+  elements.adminAuthSubmit.disabled = true;
+  showAdminAuthNotice("Signing in…");
+  const { data, error } = await siteAdminClient.auth.signInWithPassword({
+    email: elements.adminAuthEmail.value.trim(),
+    password: elements.adminAuthPassword.value
+  });
+  elements.adminAuthPassword.value = "";
+  elements.adminAuthSubmit.disabled = false;
+  if (error) {
+    showAdminAuthNotice(`Sign-in failed: ${error.message}`);
+    return;
+  }
+  if (!data.user || (data.user.email || "").toLowerCase() !== siteAdminEmail) {
+    await siteAdminClient.auth.signOut();
+    showAdminAuthNotice(`This panel is restricted to ${siteAdminEmail}.`);
+    return;
+  }
+  setSiteAdminUser(data.user);
+  elements.adminAuthDialog.close();
+  history.replaceState(null, "", "#admin");
+  selectPage("admin");
+});
+
+elements.adminResetRequest.addEventListener("click", async () => {
+  if (!siteAdminClient) {
+    showAdminAuthNotice("Password reset is unavailable. Check your connection and try again.");
+    return;
+  }
+  elements.adminResetRequest.disabled = true;
+  const { error } = await siteAdminClient.auth.resetPasswordForEmail(siteAdminEmail, {
+    redirectTo: `${location.origin}/admin.html`
+  });
+  elements.adminResetRequest.disabled = false;
+  showAdminAuthNotice(error
+    ? `Could not send a reset email: ${error.message}`
+    : `If an account exists for ${siteAdminEmail}, a password reset email has been sent.`);
+});
 
 function maybeShowSiteAd(settings) {
   if (!settings.ad_enabled || !elements.adDialog || !settings.ad_title || !settings.ad_message
@@ -1148,6 +1269,22 @@ function renderLeagueStats() {
 }
 
 function renderPage() {
+  if (state.page === "admin") {
+    elements.appLayout.hidden = true;
+    elements.adminPanelView.hidden = false;
+    if (elements.adminPanelFrame.src === "about:blank" || !elements.adminPanelFrame.src) {
+      elements.adminPanelFrame.src = "admin.html?embedded=1";
+    }
+    document.querySelectorAll(".primary-link").forEach((link) => {
+      const selected = link === elements.adminNavLink;
+      link.classList.toggle("selected", selected);
+      if (selected) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    });
+    return;
+  }
+  elements.appLayout.hidden = false;
+  elements.adminPanelView.hidden = true;
   const isDetail = Boolean(state.detailMatchId);
   const isStandings = state.page === "standings";
   const isLeagueStats = state.page === "stats";
@@ -1206,8 +1343,19 @@ async function loadData() {
 }
 
 function selectPage(page) {
-  if (!["scores", "fixtures", "standings", "stats"].includes(page)) return;
+  if (page === "admin" && !signedInSiteAdmin) {
+    elements.adminAuthNotice.hidden = true;
+    elements.adminAuthDialog.showModal();
+    return;
+  }
+  if (!["scores", "fixtures", "standings", "stats", "admin"].includes(page)) return;
   state.page = page;
+  if (page === "admin") {
+    state.detailMatchId = null;
+    state.detailRequest += 1;
+    renderPage();
+    return;
+  }
   if (page === "scores") state.filter = "live";
   if (page === "fixtures") state.filter = "upcoming";
   document.querySelectorAll(".filter-tab").forEach((tab) => {
@@ -1331,10 +1479,16 @@ renderHeaderDate();
 renderLeagueFilters();
 renderDateStrip();
 const initialPage = location.hash.slice(1);
-if (["scores", "fixtures", "standings", "stats"].includes(initialPage)) selectPage(initialPage);
-else renderPage();
-loadPublicSiteSettings().then((settingsReady) => {
+initializeSiteAdmin().then(() => {
+  if (initialPage === "admin" && signedInSiteAdmin) selectPage("admin");
+  else if (["scores", "fixtures", "standings", "stats"].includes(initialPage)) selectPage(initialPage);
+  else renderPage();
+  return loadPublicSiteSettings();
+}).then((settingsReady) => {
   if (settingsReady) recordSiteVisit();
+  loadData();
+}).catch((error) => {
+  console.error("Could not initialize the site.", error);
   loadData();
 });
 

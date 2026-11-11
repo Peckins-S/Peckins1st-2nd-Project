@@ -19,7 +19,6 @@ const adminElements = {
   notice: document.querySelector("#admin-notice"),
   login: document.querySelector("#admin-login"),
   loginForm: document.querySelector("#login-form"),
-  email: document.querySelector("#login-email"),
   password: document.querySelector("#login-password"),
   passwordReset: document.querySelector("#password-reset"),
   passwordResetForm: document.querySelector("#password-reset-form"),
@@ -272,7 +271,7 @@ adminElements.loginForm.addEventListener("submit", async (event) => {
   adminElements.loginButton.disabled = true;
   setNotice("Signing in…");
   const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email: adminElements.email.value.trim(),
+    email: adminEmail,
     password: adminElements.password.value
   });
   adminElements.password.value = "";
@@ -387,7 +386,6 @@ adminElements.signOutButton.addEventListener("click", async () => {
   adminElements.dashboard.hidden = true;
   adminElements.settingsForm.hidden = true;
   adminElements.login.hidden = false;
-  adminElements.email.value = "";
   setNotice("You have signed out.");
 });
 
@@ -398,7 +396,6 @@ if (!validConfig()) {
   setNotice("The Supabase client could not be loaded. Check your connection and reload this page.", "error");
 } else {
   supabaseClient = window.supabase.createClient(adminConfig.url, adminConfig.anonKey);
-  adminElements.email.value = adminEmail;
   setNotice("Checking admin session…");
   supabaseClient.auth.getUser().then(({ data, error }) => {
     if (error && error.name !== "AuthSessionMissingError") {

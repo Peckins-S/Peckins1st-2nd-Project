@@ -678,7 +678,7 @@ async function loadLeagueStats(force = false) {
         loading: false,
         categories: [],
         season: "",
-        error: `Player leader statistics are not available for ${league.name} from ESPN.`
+        error: `Player leader statistics are not available for ${league.name}.`
       });
       return;
     }
@@ -833,20 +833,20 @@ function getRelatedMatchMedia(summary, match) {
     .map((name) => name.toLocaleLowerCase());
   const candidates = [
     ...listFrom(summary.videos).map((item) => ({
-      title: item.headline || item.description || "ESPN video",
+      title: item.headline || item.description || "Match video",
       description: item.description || "",
       image: item.thumbnail,
       link: item.links && item.links.web && item.links.web.href || item.link,
-      type: "ESPN video"
+      type: "Match video"
     })),
     ...listFrom(summary.news && summary.news.articles).map((item) => {
       const firstImage = listFrom(item.images)[0];
       return {
-        title: item.headline || item.description || "ESPN article",
+        title: item.headline || item.description || "Match article",
         description: item.description || "",
         image: typeof firstImage === "string" ? firstImage : firstImage && (firstImage.url || firstImage.href),
         link: item.links && item.links.web && item.links.web.href || item.link,
-        type: "ESPN article"
+        type: "Match article"
       };
     })
   ];
@@ -866,13 +866,13 @@ function renderRelatedMatchMedia(summary, match) {
   const items = getRelatedMatchMedia(summary, match);
   if (!items.length) {
     return `<section class="match-media">
-      <h3>Related ESPN coverage</h3>
-      <p class="media-note">No team-related ESPN images are available for this match yet.</p>
+      <h3>Related match coverage</h3>
+      <p class="media-note">No related images are available for this match yet.</p>
     </section>`;
   }
   return `<section class="match-media">
-    <h3>Related ESPN coverage</h3>
-    <p class="media-note">These are ESPN article or video previews and may not show action from this match.</p>
+    <h3>Related match coverage</h3>
+    <p class="media-note">These article or video previews may not show action from this match.</p>
     <div class="match-media-grid">${items.map((item) => `
       <a class="match-media-card" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">
         <img class="match-media-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)}" loading="lazy" referrerpolicy="no-referrer">
@@ -982,7 +982,7 @@ function renderPlayerDetails(player, match) {
     `).join("")}</div>
     <h3>Match performance</h3>
     ${stats}
-    <p class="player-detail-source">Player match data provided by ESPN.</p>
+    <p class="player-detail-source">Player match data provided by our match data provider.</p>
     ${fotmobUrl ? `<a class="player-fotmob-link" href="${fotmobUrl}" target="_blank" rel="noopener noreferrer">Browse ${escapeHtml(match.league.name)} player stats on FotMob ↗</a>` : ""}
   `;
   if (!state.playerDialog.open) state.playerDialog.showModal();
@@ -1167,12 +1167,12 @@ function renderStandings() {
   elements.standingsTitle.textContent = state.selectedLeague === "all"
     ? "League standings" : selected.length ? `${selected[0].name} standings` : "League standings";
   if (state.selectedLeague === "all") {
-    elements.standingsSource.textContent = "Tables for ESPN-supported leagues";
+    elements.standingsSource.textContent = "League tables";
   }
   if (!available.length) {
     const message = state.selectedLeague === "all"
-      ? "Tables are available for the five leagues supported by ESPN standings."
-      : `ESPN does not provide a league table for ${escapeHtml(selected[0] && selected[0].name || "this competition")}.`;
+      ? "League tables are not available for these competitions."
+      : `Standings are not available for ${escapeHtml(selected[0] && selected[0].name || "this competition")}.`;
     elements.standingsContent.innerHTML = `<div class="empty-state"><strong>Standings are unavailable</strong>${message}</div>`;
     return;
   }
@@ -1199,8 +1199,8 @@ function renderLeagueStats() {
     && !state.leagueStats.get(league.id).loading);
   const seasons = [...new Set(complete.map((league) => state.leagueStats.get(league.id).season).filter(Boolean))];
   elements.leagueStatsSource.textContent = seasons.length === 1
-    ? `${seasons[0]} · ESPN`
-    : seasons.length > 1 ? `${seasons.length} seasons · ESPN` : "Season stats by ESPN";
+    ? seasons[0]
+    : seasons.length > 1 ? `${seasons.length} seasons` : "Season stats";
 
   if (selected.some((league) => !state.leagueStats.has(league.id) || state.leagueStats.get(league.id).loading)) {
     elements.leagueStatsContent.innerHTML = `<div class="empty-state"><strong>Loading league leaders…</strong>Fetching player statistics for the selected competitions.</div>`;
@@ -1243,7 +1243,7 @@ function renderLeagueStats() {
     if (!hasCleanSheets) {
       cards.push(`<section class="leader-card leader-unavailable">
         <h4>Clean sheets</h4>
-        <p>This stat is not provided in ESPN's current league leaders feed.</p>
+        <p>This statistic is not available in the current league leaders data.</p>
       </section>`);
     }
     return `<section class="league-leaders">
@@ -1319,10 +1319,10 @@ async function loadData() {
   if (results[1]) {
     const standingsResult = results[1];
     elements.standingsSource.textContent = standingsResult.status === "fulfilled"
-      ? standingsResult.value ? `${standingsResult.value} league tables unavailable` : "Table by ESPN"
+      ? standingsResult.value ? `${standingsResult.value} league tables unavailable` : "League table"
       : "Could not load table";
   } else {
-    elements.standingsSource.textContent = "Table by ESPN";
+    elements.standingsSource.textContent = "League table";
   }
   state.loading = false;
   elements.refreshButton.disabled = false;

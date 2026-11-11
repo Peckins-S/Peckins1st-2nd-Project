@@ -725,6 +725,7 @@ async function fetchMatches() {
   const primaryResults = await Promise.allSettled(queryDates.map((date) =>
     fetchJson(`https://site.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?dates=${date}&limit=1000`)
   ));
+  const selectedDateResult = primaryResults[1];
   const primaryEvents = new Map();
   for (const result of primaryResults) {
     if (result.status !== "fulfilled") continue;
@@ -746,14 +747,14 @@ async function fetchMatches() {
       state.matches = (await fetchOpenLigaSchedule(season))
         .filter((match) => dateKey(new Date(match.date)) === state.selectedDate);
       state.matchSource = state.matches.length ? "backup" : "primary";
-      if (!state.matches.length && primaryResults.every((result) => result.status === "rejected")) {
+      if (!state.matches.length && selectedDateResult.status === "rejected") {
         throw new Error("The backup feed returned no fixtures to confirm this date.");
       }
     } catch (error) {
       state.matches = [];
       state.matchSource = "";
-      if (primaryResults.every((result) => result.status === "rejected")) {
-        throw new Error(`The main fixture feed is unavailable, and the backup feed could not confirm this date: ${error.message}`);
+      if (selectedDateResult.status === "rejected") {
+        throw new Error(`The main fixture feed could not confirm this date, and the backup feed could not confirm fixtures: ${error.message}`);
       }
       console.warn("The backup fixture feed could not be loaded.", error);
     }

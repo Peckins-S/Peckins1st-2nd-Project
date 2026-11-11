@@ -733,12 +733,20 @@ async function recordSiteVisit() {
   const config = getSupabaseConfig();
   if (!config) return;
   try {
-    let sessionId = sessionStorage.getItem("90plus-visit-session");
-    if (!sessionId) {
-      sessionId = crypto.randomUUID();
-      sessionStorage.setItem("90plus-visit-session", sessionId);
+    const cookieName = "90plus-visit-session";
+    const cookieValue = document.cookie.split("; ").find((cookie) => cookie.startsWith(cookieName + "="));
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    let sessionId = cookieValue && cookieValue.slice(cookieName.length + 1);
+    if (!uuidPattern.test(sessionId || "")) {
+      sessionId = localStorage.getItem(cookieName);
+      if (!uuidPattern.test(sessionId || "")) sessionId = crypto.randomUUID();
+      const secure = location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = cookieName + "=" + sessionId + "; Max-Age=2592000; Path=/; SameSite=Lax" + secure;
+      if (!document.cookie.split("; ").some((cookie) => cookie === cookieName + "=" + sessionId)) {
+        localStorage.setItem(cookieName, sessionId);
+      }
     }
-    const response = await fetch(`${config.url.replace(/\/+$/, "")}/rest/v1/rpc/record_site_visit`, {
+    const response = await fetch(config.url.replace(/\/+$/, "") + "/rest/v1/rpc/record_site_visit", {
       method: "POST",
       headers: {
         apikey: config.anonKey,
@@ -747,7 +755,7 @@ async function recordSiteVisit() {
       },
       body: JSON.stringify({ p_session_id: sessionId })
     });
-    if (!response.ok) throw new Error(`Visitor count request failed (${response.status}).`);
+    if (!response.ok) throw new Error("Visitor count request failed (" + response.status + ").");
   } catch (error) {
     console.error("Could not record an anonymous visitor session.", error);
   }
@@ -1807,6 +1815,7 @@ document.querySelector("#ad-dialog-close").addEventListener("click", () => {
 renderHeaderDate();
 renderLeagueFilters();
 renderDateStrip();
+recordSiteVisit();
 const initialPage = location.hash.slice(1);
 if (["scores", "fixtures", "standings", "stats"].includes(initialPage)) selectPage(initialPage);
 else if (initialPage === "admin") {
@@ -1825,7 +1834,7 @@ if (initialPage !== "admin") {
   });
 }
 loadPublicSiteSettings().then((settingsReady) => {
-  if (settingsReady) recordSiteVisit();
+  
 }).catch((error) => {
   console.error("Could not load public site settings.", error);
 });

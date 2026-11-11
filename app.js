@@ -159,6 +159,7 @@ const state = {
   favoritesOnly: false,
   favoriteIds: readFavorites(),
   loading: false,
+  matchesLoaded: false,
   detailMatchId: null,
   detailTab: "overview",
   detailData: null,
@@ -214,6 +215,34 @@ const elements = {
 };
 let siteAdminClient = null;
 let signedInSiteAdmin = false;
+let supabaseLibraryRequest = null;
+
+function loadSupabaseLibrary() {
+  if (window.supabase && typeof window.supabase.createClient === "function") return Promise.resolve();
+  if (supabaseLibraryRequest) return supabaseLibraryRequest;
+  supabaseLibraryRequest = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+    script.async = true;
+    script.onload = () => window.supabase && typeof window.supabase.createClient === "function"
+      ? resolve()
+      : reject(new Error("The Supabase client could not be initialized."));
+    script.onerror = () => reject(new Error("The Supabase client could not be loaded."));
+    document.head.append(script);
+  }).catch((error) => {
+    supabaseLibraryRequest = null;
+    throw error;
+  });
+  return supabaseLibraryRequest;
+}
+
+async function ensureSiteAdminClient() {
+  const config = getSupabaseConfig();
+  if (!config) return null;
+  await loadSupabaseLibrary();
+  if (!siteAdminClient) siteAdminClient = window.supabase.createClient(config.url, config.anonKey);
+  return siteAdminClient;
+}
 
 function dateKey(date) {
   return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
@@ -380,7 +409,12 @@ function mapEvent(event, league) {
 }
 
 async function fetchJson(url) {
-  const response = await fetch(url);
+  const parsedUrl = new URL(url, location.href);
+  const providerHosts = ["site.api.espn.com", "site.web.api.espn.com", "api.openligadb.de"];
+  const requestUrl = location.protocol !== "file:" && providerHosts.includes(parsedUrl.hostname)
+    ? `/api/football?url=${encodeURIComponent(parsedUrl.href)}`
+    : url;
+  const response = await fetch(requestUrl);
   if (!response.ok) throw new Error(`Feed request failed (${response.status}).`);
   return response.json();
 }
@@ -539,9 +573,14 @@ async function syncAdminGateSession(session) {
 
 async function initializeSiteAdmin() {
   const config = getSupabaseConfig();
-  if (!config || !window.supabase || typeof window.supabase.createClient !== "function") return;
+  if (!config) return;
+  try {
+    await ensureSiteAdminClient();
+  } catch (error) {
+    console.error("Could not load the admin sign-in client.", error);
+    return;
+  }
 
-  siteAdminClient = window.supabase.createClient(config.url, config.anonKey);
   elements.adminAuthEmail.value = siteAdminEmail;
   const { data, error } = await siteAdminClient.auth.getSession();
   if (error && error.name !== "AuthSessionMissingError") {
@@ -580,13 +619,21 @@ document.querySelector("#admin-auth-close").addEventListener("click", () => {
 
 elements.adminAuthForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (!siteAdminClient) {
+  let client;
+  try {
+    client = await ensureSiteAdminClient();
+  } catch (error) {
+    console.error("Could not load the admin sign-in client.", error);
+    showAdminAuthNotice("Admin sign-in is unavailable. Check your connection and try again.");
+    return;
+  }
+  if (!client) {
     showAdminAuthNotice("Admin sign-in is unavailable. Check your connection and try again.");
     return;
   }
   elements.adminAuthSubmit.disabled = true;
   showAdminAuthNotice("Signing in…");
-  const { data, error } = await siteAdminClient.auth.signInWithPassword({
+  const { data, error } = await client.auth.signInWithPassword({
     email: elements.adminAuthEmail.value.trim(),
     password: elements.adminAuthPassword.value
   });
@@ -597,7 +644,7 @@ elements.adminAuthForm.addEventListener("submit", async (event) => {
     return;
   }
   if (!data.user || (data.user.email || "").toLowerCase() !== siteAdminEmail) {
-    await siteAdminClient.auth.signOut();
+    await client.auth.signOut();
     showAdminAuthNotice(`This panel is restricted to ${siteAdminEmail}.`);
     return;
   }
@@ -605,7 +652,7 @@ elements.adminAuthForm.addEventListener("submit", async (event) => {
     await syncAdminGateSession(data.session);
   } catch (sessionError) {
     console.error("Could not secure the admin session.", sessionError);
-    await siteAdminClient.auth.signOut();
+    await client.auth.signOut();
     showAdminAuthNotice("Could not verify the admin session with the server. Please try again.");
     return;
   }
@@ -616,12 +663,20 @@ elements.adminAuthForm.addEventListener("submit", async (event) => {
 });
 
 elements.adminResetRequest.addEventListener("click", async () => {
-  if (!siteAdminClient) {
+  let client;
+  try {
+    client = await ensureSiteAdminClient();
+  } catch (error) {
+    console.error("Could not load the admin sign-in client.", error);
+    showAdminAuthNotice("Password reset is unavailable. Check your connection and try again.");
+    return;
+  }
+  if (!client) {
     showAdminAuthNotice("Password reset is unavailable. Check your connection and try again.");
     return;
   }
   elements.adminResetRequest.disabled = true;
-  const { error } = await siteAdminClient.auth.resetPasswordForEmail(siteAdminEmail, {
+  const { error } = await client.auth.resetPasswordForEmail(siteAdminEmail, {
     redirectTo: `${location.origin}/admin.html`
   });
   elements.adminResetRequest.disabled = false;
@@ -760,50 +815,43 @@ async function loadPublicSiteSettings() {
 
 async function fetchMatches() {
   const selectedDate = parseDate(state.selectedDate);
-  const queryDates = [-1, 0, 1].map((offset) => {
-    const date = new Date(selectedDate);
-    date.setDate(date.getDate() + offset);
-    return dateKey(date);
-  });
-  const primaryResults = await Promise.allSettled(queryDates.map((date) =>
-    fetchJson(`https://site.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?dates=${date}&limit=1000`)
-  ));
-  const selectedDateResult = primaryResults[1];
-  const primaryEvents = new Map();
-  for (const result of primaryResults) {
-    if (result.status !== "fulfilled") continue;
-    for (const event of result.value.events || []) primaryEvents.set(String(event.id), event);
+  const selectedDateKey = state.selectedDate;
+  let scoreboard;
+  try {
+    scoreboard = await fetchJson(`https://site.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?dates=${selectedDateKey}&limit=1000`);
+  } catch (primaryError) {
+    const season = getSeasonStartYear(selectedDate);
+    try {
+      state.matches = (await fetchOpenLigaSchedule(season))
+        .filter((match) => dateKey(new Date(match.date)) === selectedDateKey);
+      state.matchSource = state.matches.length ? "backup" : "primary";
+    } catch (backupError) {
+      state.matches = [];
+      state.matchSource = "";
+      throw new Error(`The main fixture feed failed: ${primaryError.message} The backup feed failed: ${backupError.message}`);
+    }
+    if (!state.matches.length) {
+      throw new Error(`The main fixture feed failed: ${primaryError.message} The backup feed confirmed no fixtures.`);
+    }
+    state.matches.sort((a, b) => new Date(a.date) - new Date(b.date));
+    updateCompetitionsFromMatches();
+    return 1;
   }
-  const primaryMatches = [...primaryEvents.values()]
-    .filter((event) => event.date && dateKey(new Date(event.date)) === state.selectedDate)
+
+  state.matches = (scoreboard.events || [])
+    .filter((event) => event.date && dateKey(new Date(event.date)) === selectedDateKey)
     .map((event) => {
     const competition = { ...getEventLeague(event, event.id), eventId: String(event.id) };
     return mapEvent(event, competition);
   });
 
-  if (primaryMatches.length) {
-    state.matches = primaryMatches;
-    state.matchSource = "primary";
-  } else {
-    const season = getSeasonStartYear(selectedDate);
-    try {
-      state.matches = (await fetchOpenLigaSchedule(season))
-        .filter((match) => dateKey(new Date(match.date)) === state.selectedDate);
-      state.matchSource = state.matches.length ? "backup" : "primary";
-      if (!state.matches.length && selectedDateResult.status === "rejected") {
-        throw new Error("The backup feed returned no fixtures to confirm this date.");
-      }
-    } catch (error) {
-      state.matches = [];
-      state.matchSource = "";
-      if (selectedDateResult.status === "rejected") {
-        throw new Error(`The main fixture feed could not confirm this date, and the backup feed could not confirm fixtures: ${error.message}`);
-      }
-      console.warn("The backup fixture feed could not be loaded.", error);
-    }
-  }
-
+  state.matchSource = "primary";
   state.matches.sort((a, b) => new Date(a.date) - new Date(b.date));
+  updateCompetitionsFromMatches();
+  return 0;
+}
+
+function updateCompetitionsFromMatches() {
   const competitionMap = new Map([...leagues, ...internationalCompetitions, ...state.matches.map((match) => match.league)]
     .map((league) => [league.id, league]));
   state.competitions = [...competitionMap.values()].sort(compareCompetitions);
@@ -812,7 +860,12 @@ async function fetchMatches() {
     state.selectedLeague = "all";
   }
   renderLeagueFilters();
-  return primaryResults.filter((result) => result.status === "rejected").length;
+}
+
+function selectedCompetitions() {
+  return state.selectedLeague === "all"
+    ? leagues
+    : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
 }
 
 function flattenStandings(node) {
@@ -893,8 +946,7 @@ async function fetchStandingsForLeague(league, force = false) {
 }
 
 async function loadStandings(force = false) {
-  const selectedLeagues = state.selectedLeague === "all"
-    ? state.competitions : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
+  const selectedLeagues = selectedCompetitions();
   const pending = selectedLeagues.filter((league) => force || !state.standings.has(league.id)
     && !state.standingsErrors.has(league.id));
   if (!pending.length) {
@@ -903,8 +955,8 @@ async function loadStandings(force = false) {
   }
   pending.forEach((league) => state.standingsErrors.set(league.id, "Loading standings…"));
   renderStandings();
-  for (let index = 0; index < pending.length; index += 5) {
-    await Promise.all(pending.slice(index, index + 5).map((league) => fetchStandingsForLeague(league, force)));
+  for (let index = 0; index < pending.length; index += 2) {
+    await Promise.all(pending.slice(index, index + 2).map((league) => fetchStandingsForLeague(league, force)));
   }
   renderStandings();
 }
@@ -936,8 +988,7 @@ async function fetchLeagueStats(league) {
 }
 
 async function loadLeagueStats(force = false) {
-  const selectedLeagues = state.selectedLeague === "all"
-    ? state.competitions : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
+  const selectedLeagues = selectedCompetitions();
   const requests = selectedLeagues.map((league) => async () => {
     if (!force && state.leagueStats.has(league.id)) return;
     state.leagueStats.set(league.id, { loading: true, categories: [], season: "", error: "" });
@@ -958,8 +1009,8 @@ async function loadLeagueStats(force = false) {
   });
 
   renderLeagueStats();
-  for (let index = 0; index < requests.length; index += 5) {
-    await Promise.all(requests.slice(index, index + 5).map((request) => request()));
+  for (let index = 0; index < requests.length; index += 2) {
+    await Promise.all(requests.slice(index, index + 2).map((request) => request()));
   }
 }
 
@@ -1401,6 +1452,10 @@ function renderMatch(match) {
 function renderMatches() {
   const matches = getFilteredMatches();
   elements.matchCount.textContent = String(matches.length);
+  if (state.loading && !state.matches.length) {
+    elements.matchList.innerHTML = `<div class="loading-state" role="status"><span class="loading-spinner" aria-hidden="true"></span><span>Loading fixtures and live scores…</span></div>`;
+    return;
+  }
   if (!matches.length) {
     const noMatchesForDate = !state.matches.length && state.filter !== "live";
     const noUpcomingMatches = state.filter === "upcoming" && state.matches.length > 0;
@@ -1435,8 +1490,7 @@ function renderMatches() {
 }
 
 function renderStandings() {
-  const selected = state.selectedLeague === "all"
-    ? state.competitions : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
+  const selected = selectedCompetitions();
   const available = selected.filter((league) => state.standings.has(league.id));
   elements.standingsTitle.textContent = state.selectedLeague === "all"
     ? "League standings" : selected.length ? `${selected[0].name} standings` : "League standings";
@@ -1445,11 +1499,14 @@ function renderStandings() {
   }
   if (!available.length) {
     const loading = selected.some((league) => state.standingsErrors.get(league.id) === "Loading standings…");
-    const message = loading ? "Loading tables for the selected competitions."
-      : state.selectedLeague === "all"
-        ? "Standings are not published for these competitions."
-        : state.standingsErrors.get(selected[0] && selected[0].id) || "Standings are not published for this competition.";
-    elements.standingsContent.innerHTML = `<div class="empty-state"><strong>${loading ? "Loading standings…" : "Standings are unavailable"}</strong>${escapeHtml(message)}</div>`;
+    if (loading) {
+      elements.standingsContent.innerHTML = `<div class="loading-state" role="status"><span class="loading-spinner" aria-hidden="true"></span><span>Loading standings…</span></div>`;
+      return;
+    }
+    const message = state.selectedLeague === "all"
+      ? "Standings are not published for these competitions."
+      : state.standingsErrors.get(selected[0] && selected[0].id) || "Standings are not published for this competition.";
+    elements.standingsContent.innerHTML = `<div class="empty-state"><strong>Standings are unavailable</strong>${escapeHtml(message)}</div>`;
     return;
   }
   const tables = available.map((league) => `
@@ -1472,8 +1529,7 @@ function renderStandings() {
 }
 
 function renderLeagueStats() {
-  const selected = state.selectedLeague === "all"
-    ? state.competitions : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
+  const selected = selectedCompetitions();
   elements.leagueStatsTitle.textContent = state.selectedLeague === "all"
     ? "League leaders" : selected.length ? `${selected[0].name} leaders` : "League leaders";
 
@@ -1485,7 +1541,7 @@ function renderLeagueStats() {
     : seasons.length > 1 ? `${seasons.length} seasons` : "Season stats";
 
   if (selected.some((league) => !state.leagueStats.has(league.id) || state.leagueStats.get(league.id).loading)) {
-    elements.leagueStatsContent.innerHTML = `<div class="empty-state"><strong>Loading league leaders…</strong>Fetching player statistics for the selected competitions.</div>`;
+    elements.leagueStatsContent.innerHTML = `<div class="loading-state" role="status"><span class="loading-spinner" aria-hidden="true"></span><span>Loading player stats…</span></div>`;
     return;
   }
 
@@ -1586,22 +1642,22 @@ async function loadData() {
   state.loading = true;
   elements.refreshButton.disabled = true;
   elements.lastUpdated.textContent = "Loading fixtures…";
-  const results = await Promise.allSettled([fetchMatches()]);
-  const matchResult = results[0];
-  if (matchResult.status === "fulfilled") {
+  renderPage();
+  try {
+    const unavailableFeeds = await fetchMatches();
     state.matchError = "";
     const dateLabel = formatDate(parseDate(state.selectedDate), { month: "short", day: "numeric" });
     const sourceLabel = state.matchSource === "backup" ? " · Backup feed" : "";
-    elements.lastUpdated.textContent = `Updated ${formatDate(new Date(), { hour: "numeric", minute: "2-digit" })} · ${dateLabel}${sourceLabel}${matchResult.value ? ` · ${matchResult.value} fixture feed requests unavailable` : ""}`;
-  } else {
-    state.matchError = matchResult.reason.message;
-    elements.lastUpdated.textContent = `Could not load fixtures: ${matchResult.reason.message}`;
+    elements.lastUpdated.textContent = `Updated ${formatDate(new Date(), { hour: "numeric", minute: "2-digit" })} · ${dateLabel}${sourceLabel}${unavailableFeeds ? ` · ${unavailableFeeds} fixture feed requests unavailable` : ""}`;
+  } catch (error) {
+    state.matchError = error.message;
+    elements.lastUpdated.textContent = `Could not load fixtures: ${error.message}`;
+  } finally {
+    state.matchesLoaded = true;
+    state.loading = false;
+    elements.refreshButton.disabled = false;
+    renderPage();
   }
-  state.loading = false;
-  elements.refreshButton.disabled = false;
-  renderPage();
-  if (state.page === "standings") loadStandings();
-  if (state.page === "stats") loadLeagueStats();
 }
 
 function selectPage(page) {
@@ -1628,6 +1684,7 @@ function selectPage(page) {
   renderPage();
   if (page === "stats") loadLeagueStats();
   if (page === "standings") loadStandings();
+  if ((page === "fixtures" || page === "scores") && !state.matchesLoaded) loadData();
 }
 
 document.querySelector(".primary-nav").addEventListener("click", (event) => {
@@ -1751,21 +1808,31 @@ renderHeaderDate();
 renderLeagueFilters();
 renderDateStrip();
 const initialPage = location.hash.slice(1);
-initializeSiteAdmin().then(() => {
-  if (initialPage === "admin" && signedInSiteAdmin) selectPage("admin");
-  else if (["scores", "fixtures", "standings", "stats"].includes(initialPage)) selectPage(initialPage);
-  else renderPage();
-  return loadPublicSiteSettings();
-}).then((settingsReady) => {
+if (["scores", "fixtures", "standings", "stats"].includes(initialPage)) selectPage(initialPage);
+else if (initialPage === "admin") {
+  initializeSiteAdmin().then(() => {
+    if (signedInSiteAdmin) selectPage("admin");
+    else selectPage("fixtures");
+  }).catch((error) => {
+    console.error("Could not initialize the site admin session.", error);
+    selectPage("fixtures");
+  });
+} else selectPage("fixtures");
+
+if (initialPage !== "admin") {
+  initializeSiteAdmin().catch((error) => {
+    console.error("Could not initialize the site admin session.", error);
+  });
+}
+loadPublicSiteSettings().then((settingsReady) => {
   if (settingsReady) recordSiteVisit();
-  loadData();
 }).catch((error) => {
-  console.error("Could not initialize the site.", error);
-  loadData();
+  console.error("Could not load public site settings.", error);
 });
 
 window.setInterval(() => {
-  if (!document.hidden && !state.detailMatchId) loadData();
+  if (!document.hidden && !state.detailMatchId && state.matchesLoaded
+    && (state.page === "fixtures" || state.page === "scores")) loadData();
 }, 60000);
 window.setInterval(() => {
   if (!document.hidden && state.detailMatchId && !state.detailLoading) {

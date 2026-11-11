@@ -142,7 +142,6 @@ const state = {
 const elements = {
   appLayout: document.querySelector("#fixtures"),
   adminNavLink: document.querySelector("#admin-nav-link"),
-  adminLoginLink: document.querySelector("#admin-login-link"),
   adminAuthDialog: document.querySelector("#admin-auth-dialog"),
   adminAuthForm: document.querySelector("#admin-auth-form"),
   adminAuthEmail: document.querySelector("#admin-auth-email"),
@@ -361,7 +360,6 @@ function getSupabaseConfig() {
 function setSiteAdminUser(user) {
   signedInSiteAdmin = Boolean(user && (user.email || "").toLowerCase() === siteAdminEmail);
   elements.adminNavLink.hidden = !signedInSiteAdmin;
-  elements.adminLoginLink.textContent = signedInSiteAdmin ? "Admin panel" : "Admin sign in";
   if (!signedInSiteAdmin) {
     elements.adminPanelFrame.src = "about:blank";
     elements.adminPanelView.hidden = true;
@@ -403,17 +401,6 @@ elements.adminNavLink.addEventListener("click", (event) => {
     history.replaceState(null, "", "#admin");
     selectPage("admin");
   }
-});
-
-elements.adminLoginLink.addEventListener("click", (event) => {
-  event.preventDefault();
-  if (signedInSiteAdmin) {
-    history.replaceState(null, "", "#admin");
-    selectPage("admin");
-    return;
-  }
-  elements.adminAuthNotice.hidden = true;
-  elements.adminAuthDialog.showModal();
 });
 
 document.querySelector("#admin-auth-close").addEventListener("click", () => {

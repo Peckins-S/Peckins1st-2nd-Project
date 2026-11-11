@@ -40,6 +40,7 @@ const adminElements = {
   adStatus: document.querySelector("#dashboard-ad-status"),
   visitsToday: document.querySelector("#dashboard-visits-today"),
   visitsWeek: document.querySelector("#dashboard-visits-week"),
+  visitsMonth: document.querySelector("#dashboard-visits-month"),
   visitsStatus: document.querySelector("#dashboard-visits-status"),
   migrationNotice: document.querySelector("#admin-migration-notice"),
   settingsForm: document.querySelector("#settings-form"),
@@ -232,22 +233,52 @@ async function loadMatchDashboard() {
 }
 
 async function loadVisitorStats() {
-  const today = new Date().toISOString().slice(0, 10);
-  const weekStart = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const [todayResult, weekResult] = await Promise.all([
-    supabaseClient.from("site_visits").select("visit_date", { count: "exact", head: true }).eq("visit_date", today),
-    supabaseClient.from("site_visits").select("visit_date", { count: "exact", head: true }).gte("visit_date", weekStart)
-  ]);
-  if (todayResult.error || weekResult.error) {
-    const error = todayResult.error || weekResult.error;
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const monthStart = today.slice(0, 7) + "-01";
+  const weekStartDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  weekStartDate.setUTCDate(weekStartDate.getUTCDate() - (weekStartDate.getUTCDay() + 6) % 7);
+  const weekStart = weekStartDate.toISOString().slice(0, 10);
+  const visits = [];
+  try {
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabaseClient
+        .from("site_visits")
+        .select("visit_date, session_id")
+        .gte("visit_date", monthStart)
+        .lte("visit_date", today)
+        .order("visit_date", { ascending: true })
+        .range(offset, offset + 999);
+      if (error) throw error;
+      visits.push(...data);
+      if (data.length < 1000) break;
+    }
+  } catch (error) {
     adminElements.visitsToday.textContent = "—";
     adminElements.visitsWeek.textContent = "—";
-    adminElements.visitsStatus.textContent = `Visitor stats unavailable: ${error.message}`;
+    adminElements.visitsMonth.textContent = "—";
+    adminElements.visitsStatus.textContent = "Visitor stats unavailable: " + error.message;
     return;
   }
-  adminElements.visitsToday.textContent = String(todayResult.count || 0);
-  adminElements.visitsWeek.textContent = String(weekResult.count || 0);
-  adminElements.visitsStatus.textContent = "Anonymous browser sessions; no IP addresses or personal details are stored.";
+  if (visits.some((visit) => !visit.visit_date || !visit.session_id)) {
+    adminElements.visitsToday.textContent = "—";
+    adminElements.visitsWeek.textContent = "—";
+    adminElements.visitsMonth.textContent = "—";
+    adminElements.visitsStatus.textContent = "Visitor stats unavailable: a visit record is incomplete.";
+    return;
+  }
+  const todayVisitors = new Set();
+  const weekVisitors = new Set();
+  const monthVisitors = new Set();
+  for (const visit of visits) {
+    monthVisitors.add(visit.session_id);
+    if (visit.visit_date >= weekStart) weekVisitors.add(visit.session_id);
+    if (visit.visit_date === today) todayVisitors.add(visit.session_id);
+  }
+  adminElements.visitsToday.textContent = String(todayVisitors.size);
+  adminElements.visitsWeek.textContent = String(weekVisitors.size);
+  adminElements.visitsMonth.textContent = String(monthVisitors.size);
+  adminElements.visitsStatus.textContent = "Unique anonymous browser sessions this UTC period; repeat loads are deduplicated per day. No IP addresses or personal details are stored.";
 }
 
 async function authorizeUser(user) {

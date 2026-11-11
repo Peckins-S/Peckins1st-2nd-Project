@@ -6,9 +6,9 @@ const leagues = [
   { id: "fra.1", espnId: "710", name: "Ligue 1", country: "France", mark: "L1" }
 ];
 const internationalCompetitions = [
-  { id: "espn-775", espnId: "775", name: "UEFA Champions League", country: "Europe", mark: "UCL" },
-  { id: "espn-776", espnId: "776", name: "UEFA Europa League", country: "Europe", mark: "UEL" },
-  { id: "espn-20296", espnId: "20296", name: "UEFA Conference League", country: "Europe", mark: "UECL" }
+  { id: "espn-775", espnId: "775", apiSlug: "uefa.champions", name: "UEFA Champions League", country: "Europe", mark: "UCL" },
+  { id: "espn-776", espnId: "776", apiSlug: "uefa.europa", name: "UEFA Europa League", country: "Europe", mark: "UEL" },
+  { id: "espn-20296", espnId: "20296", apiSlug: "uefa.europa.conf", name: "UEFA Conference League", country: "Europe", mark: "UECL" }
 ];
 
 const featuredLeagueChoices = [
@@ -143,11 +143,14 @@ const competitionOrder = [
 const competitionRanks = new Map(competitionOrder.map((id, index) => [id, index]));
 const openLigaScheduleCache = new Map();
 const openLigaScheduleRequests = new Map();
+const competitionApiSlugCache = new Map();
+const competitionApiSlugRequests = new Map();
 
 const state = {
   matches: [],
   competitions: [...leagues, ...internationalCompetitions],
   standings: new Map(),
+  standingsErrors: new Map(),
   leagueStats: new Map(),
   selectedDate: dateKey(new Date()),
   selectedLeague: "all",
@@ -774,7 +777,7 @@ async function fetchMatches() {
   const primaryMatches = [...primaryEvents.values()]
     .filter((event) => event.date && dateKey(new Date(event.date)) === state.selectedDate)
     .map((event) => {
-    const competition = getEventLeague(event, event.id);
+    const competition = { ...getEventLeague(event, event.id), eventId: String(event.id) };
     return mapEvent(event, competition);
   });
 
@@ -840,19 +843,70 @@ function mapStanding(entry, index) {
   };
 }
 
-async function fetchStandings() {
-  const results = await Promise.allSettled(leagues.map(async (league) => {
-    const url = `https://site.web.api.espn.com/apis/v2/sports/soccer/${league.id}/standings?region=us&lang=en&contentorigin=espn`;
+async function resolveCompetitionApiSlug(league) {
+  if (league.apiSlug) return league.apiSlug;
+  const international = internationalCompetitions.find((item) => item.id === league.id
+    || item.espnId === String(league.espnId || ""));
+  if (international && international.apiSlug) return international.apiSlug;
+  if (competitionApiSlugCache.has(league.id)) return competitionApiSlugCache.get(league.id);
+  if (competitionApiSlugRequests.has(league.id)) return competitionApiSlugRequests.get(league.id);
+
+  const request = (async () => {
+    if (/^[a-z]{3}\.\d+$/i.test(league.id)) {
+      competitionApiSlugCache.set(league.id, league.id);
+      return league.id;
+    }
+    if (!league.eventId) throw new Error(`Competition details are not available for ${league.name}.`);
+
+    const summary = await fetchJson(`https://site.api.espn.com/apis/site/v2/sports/soccer/all/summary?event=${encodeURIComponent(league.eventId)}`);
+    const apiSlug = summary.header && summary.header.league && summary.header.league.slug;
+    if (!apiSlug) throw new Error(`The data provider did not identify ${league.name}.`);
+    competitionApiSlugCache.set(league.id, apiSlug);
+    return apiSlug;
+  })().finally(() => {
+    competitionApiSlugRequests.delete(league.id);
+  });
+  competitionApiSlugRequests.set(league.id, request);
+  return request;
+}
+
+async function fetchStandingsForLeague(league, force = false) {
+  if (!force && state.standings.has(league.id)) return;
+  try {
+    const apiSlug = await resolveCompetitionApiSlug(league);
+    const url = `https://site.web.api.espn.com/apis/v2/sports/soccer/${encodeURIComponent(apiSlug)}/standings?region=us&lang=en&contentorigin=espn`;
     const data = await fetchJson(url);
     const entries = flattenStandings(data);
-    if (!entries.length) throw new Error(`No standings returned for ${league.name}.`);
+    if (!entries.length) {
+      state.standings.delete(league.id);
+      state.standingsErrors.set(league.id, "The data provider does not publish a standings table for this competition.");
+      return;
+    }
     state.standings.set(league.id, entries.map(mapStanding));
-  }));
-  const failed = results.filter((result) => result.status === "rejected");
-  if (failed.length === leagues.length) {
-    throw new Error(failed.map((result) => result.reason.message).join(" "));
+    state.standingsErrors.delete(league.id);
+  } catch (error) {
+    state.standings.delete(league.id);
+    state.standingsErrors.set(league.id, error.message.includes("(404)")
+      ? "The data provider does not publish a standings table for this competition."
+      : error.message);
   }
-  return failed.length;
+}
+
+async function loadStandings(force = false) {
+  const selectedLeagues = state.selectedLeague === "all"
+    ? state.competitions : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
+  const pending = selectedLeagues.filter((league) => force || !state.standings.has(league.id)
+    && !state.standingsErrors.has(league.id));
+  if (!pending.length) {
+    renderStandings();
+    return;
+  }
+  pending.forEach((league) => state.standingsErrors.set(league.id, "Loading standings…"));
+  renderStandings();
+  for (let index = 0; index < pending.length; index += 5) {
+    await Promise.all(pending.slice(index, index + 5).map((league) => fetchStandingsForLeague(league, force)));
+  }
+  renderStandings();
 }
 
 function mapLeagueStatCategory(category) {
@@ -872,7 +926,8 @@ function mapLeagueStatCategory(category) {
 }
 
 async function fetchLeagueStats(league) {
-  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${league.id}/statistics`;
+  const apiSlug = await resolveCompetitionApiSlug(league);
+  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(apiSlug)}/statistics`;
   const data = await fetchJson(url);
   const categories = (data.stats || []).map(mapLeagueStatCategory)
     .filter((category) => category.leaders.length);
@@ -882,30 +937,30 @@ async function fetchLeagueStats(league) {
 
 async function loadLeagueStats(force = false) {
   const selectedLeagues = state.selectedLeague === "all"
-    ? leagues : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
-  const requests = selectedLeagues.map(async (league) => {
-    if (!leagues.some((supported) => supported.id === league.id)) {
+    ? state.competitions : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
+  const requests = selectedLeagues.map((league) => async () => {
+    if (!force && state.leagueStats.has(league.id)) return;
+    state.leagueStats.set(league.id, { loading: true, categories: [], season: "", error: "" });
+    try {
+      const data = await fetchLeagueStats(league);
+      state.leagueStats.set(league.id, { ...data, loading: false, error: "" });
+    } catch (error) {
       state.leagueStats.set(league.id, {
         loading: false,
         categories: [],
         season: "",
-        error: `Player leader statistics are not available for ${league.name}.`
+        error: error.message.includes("(404)")
+          ? `The data provider does not publish player statistics for ${league.name}.`
+          : error.message
       });
-      return;
     }
-    if (!force && state.leagueStats.has(league.id)) return;
-      state.leagueStats.set(league.id, { loading: true, categories: [], season: "", error: "" });
-      try {
-        const data = await fetchLeagueStats(league);
-        state.leagueStats.set(league.id, { ...data, loading: false, error: "" });
-      } catch (error) {
-        state.leagueStats.set(league.id, { loading: false, categories: [], season: "", error: error.message });
-      }
-      renderLeagueStats();
+    renderLeagueStats();
   });
 
   renderLeagueStats();
-  await Promise.all(requests);
+  for (let index = 0; index < requests.length; index += 5) {
+    await Promise.all(requests.slice(index, index + 5).map((request) => request()));
+  }
 }
 
 function listFrom(value) {
@@ -1381,7 +1436,7 @@ function renderMatches() {
 
 function renderStandings() {
   const selected = state.selectedLeague === "all"
-    ? leagues : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
+    ? state.competitions : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
   const available = selected.filter((league) => state.standings.has(league.id));
   elements.standingsTitle.textContent = state.selectedLeague === "all"
     ? "League standings" : selected.length ? `${selected[0].name} standings` : "League standings";
@@ -1389,13 +1444,15 @@ function renderStandings() {
     elements.standingsSource.textContent = "League tables";
   }
   if (!available.length) {
-    const message = state.selectedLeague === "all"
-      ? "League tables are not available for these competitions."
-      : `Standings are not available for ${escapeHtml(selected[0] && selected[0].name || "this competition")}.`;
-    elements.standingsContent.innerHTML = `<div class="empty-state"><strong>Standings are unavailable</strong>${message}</div>`;
+    const loading = selected.some((league) => state.standingsErrors.get(league.id) === "Loading standings…");
+    const message = loading ? "Loading tables for the selected competitions."
+      : state.selectedLeague === "all"
+        ? "Standings are not published for these competitions."
+        : state.standingsErrors.get(selected[0] && selected[0].id) || "Standings are not published for this competition.";
+    elements.standingsContent.innerHTML = `<div class="empty-state"><strong>${loading ? "Loading standings…" : "Standings are unavailable"}</strong>${escapeHtml(message)}</div>`;
     return;
   }
-  elements.standingsContent.innerHTML = available.map((league) => `
+  const tables = available.map((league) => `
     <section class="table-league">
       <h3><span class="league-symbol">${league.mark}</span>${escapeHtml(league.name)}<span>${escapeHtml(league.country)}</span></h3>
       <div class="table-scroll"><table class="standings-table">
@@ -1406,11 +1463,17 @@ function renderStandings() {
       </table></div>
     </section>
   `).join("");
+  const unavailable = selected.filter((league) => !state.standings.has(league.id));
+  elements.standingsContent.innerHTML = tables + unavailable.map((league) => `
+    <div class="empty-state"><strong>${escapeHtml(league.name)} standings unavailable</strong>
+      ${escapeHtml(state.standingsErrors.get(league.id) || "Standings are not published for this competition.")}
+    </div>
+  `).join("");
 }
 
 function renderLeagueStats() {
   const selected = state.selectedLeague === "all"
-    ? leagues : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
+    ? state.competitions : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
   elements.leagueStatsTitle.textContent = state.selectedLeague === "all"
     ? "League leaders" : selected.length ? `${selected[0].name} leaders` : "League leaders";
 
@@ -1523,9 +1586,7 @@ async function loadData() {
   state.loading = true;
   elements.refreshButton.disabled = true;
   elements.lastUpdated.textContent = "Loading fixtures…";
-  const tasks = [fetchMatches()];
-  if (state.standings.size < leagues.length) tasks.push(fetchStandings());
-  const results = await Promise.allSettled(tasks);
+  const results = await Promise.allSettled([fetchMatches()]);
   const matchResult = results[0];
   if (matchResult.status === "fulfilled") {
     state.matchError = "";
@@ -1536,17 +1597,11 @@ async function loadData() {
     state.matchError = matchResult.reason.message;
     elements.lastUpdated.textContent = `Could not load fixtures: ${matchResult.reason.message}`;
   }
-  if (results[1]) {
-    const standingsResult = results[1];
-    elements.standingsSource.textContent = standingsResult.status === "fulfilled"
-      ? standingsResult.value ? `${standingsResult.value} league tables unavailable` : "League table"
-      : "Could not load table";
-  } else {
-    elements.standingsSource.textContent = "League table";
-  }
   state.loading = false;
   elements.refreshButton.disabled = false;
   renderPage();
+  if (state.page === "standings") loadStandings();
+  if (state.page === "stats") loadLeagueStats();
 }
 
 function selectPage(page) {
@@ -1572,6 +1627,7 @@ function selectPage(page) {
   });
   renderPage();
   if (page === "stats") loadLeagueStats();
+  if (page === "standings") loadStandings();
 }
 
 document.querySelector(".primary-nav").addEventListener("click", (event) => {
@@ -1602,6 +1658,7 @@ document.querySelector("#competitions").addEventListener("click", (event) => {
   });
   renderPage();
   if (state.page === "stats") loadLeagueStats();
+  if (state.page === "standings") loadStandings();
 });
 
 elements.dateStrip.addEventListener("click", (event) => {
@@ -1682,6 +1739,7 @@ elements.favoritesToggle.addEventListener("click", () => {
 });
 elements.refreshButton.addEventListener("click", () => {
   if (state.page === "stats") loadLeagueStats(true);
+  else if (state.page === "standings") loadStandings(true);
   else loadData();
 });
 

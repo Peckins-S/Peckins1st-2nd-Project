@@ -563,3 +563,32 @@ h1 { font-size: 42px; }
   .team { gap: 6px; font-size: 12px; }
   .team-crest { width: 20px; height: 20px; flex-basis: 20px; font-size: 8px; }
 }
+
+.admin-shell:has(.admin-workspace-layout:not([hidden])) { width: min(1380px, calc(100% - 40px)); }
+.admin-workspace-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); align-items: start; gap: 24px; }
+.admin-sidebar { position: sticky; top: 20px; display: flex; flex-direction: column; min-height: 420px; padding: 14px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.admin-sidebar-label { margin: 4px 10px 12px; color: var(--muted); font: 10px "DM Mono", monospace; letter-spacing: .12em; }
+.admin-side-nav { display: grid; gap: 5px; }
+.admin-side-nav a, .admin-side-signout { display: flex; align-items: center; gap: 11px; min-height: 42px; padding: 0 11px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; }
+.admin-side-nav a > span, .admin-side-signout > span { display: grid; width: 20px; height: 20px; place-items: center; color: inherit; font-size: 16px; }
+.admin-side-nav a:hover, .admin-side-signout:hover { background: var(--bg); color: var(--text); }
+.admin-side-nav a[aria-current="page"] { border-color: #35523a; background: #202c22; color: var(--green); font-weight: 600; }
+.admin-side-signout { margin-top: auto; border-top: 1px solid var(--border); border-radius: 0; padding-top: 12px; color: #e8a39c; }
+.admin-workspace-content { min-width: 0; }
+.admin-workspace-content .admin-dashboard, .admin-workspace-content .admin-form { width: 100%; }
+.admin-section-anchor { scroll-margin-top: 22px; }
+.admin-visitor-stats { gap: 12px 30px; margin: 0; }
+.admin-visitor-stats > span { flex-direction: column-reverse; align-items: flex-start; gap: 5px; min-width: 90px; }
+.admin-visitor-stats strong { font-size: 24px; }
+.admin-workspace-content .admin-form-actions { position: sticky; bottom: 12px; z-index: 2; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 8px 26px rgb(0 0 0 / 24%); }
+@media (max-width: 760px) {
+  .admin-shell:has(.admin-workspace-layout:not([hidden])) { width: calc(100% - 24px); padding-top: 22px; }
+  .admin-workspace-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .admin-sidebar { position: sticky; top: 0; z-index: 5; min-height: 0; margin: 0 -2px; padding: 8px; border-radius: 8px; box-shadow: 0 8px 18px rgb(0 0 0 / 24%); }
+  .admin-sidebar-label { display: none; }
+  .admin-side-nav { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: thin; }
+  .admin-side-nav a { flex: 0 0 auto; min-height: 40px; gap: 7px; padding: 0 10px; white-space: nowrap; font-size: 12px; }
+  .admin-side-nav a > span { width: 16px; font-size: 14px; }
+  .admin-side-signout { align-self: flex-end; min-height: 34px; margin-top: 6px; padding: 4px 9px 0; border-top: 0; font-size: 12px; }
+  .admin-workspace-content .admin-form-actions { bottom: 8px; }
+}

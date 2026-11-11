@@ -239,13 +239,14 @@ async function loadVisitorStats() {
   const weekStartDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   weekStartDate.setUTCDate(weekStartDate.getUTCDate() - (weekStartDate.getUTCDay() + 6) % 7);
   const weekStart = weekStartDate.toISOString().slice(0, 10);
+  const rangeStart = weekStart < monthStart ? weekStart : monthStart;
   const visits = [];
   try {
     for (let offset = 0; ; offset += 1000) {
       const { data, error } = await supabaseClient
         .from("site_visits")
         .select("visit_date, session_id")
-        .gte("visit_date", monthStart)
+        .gte("visit_date", rangeStart)
         .lte("visit_date", today)
         .order("visit_date", { ascending: true })
         .range(offset, offset + 999);
@@ -273,7 +274,7 @@ async function loadVisitorStats() {
   const weekVisitors = new Set();
   const monthVisitors = new Set();
   for (const visit of visits) {
-    monthVisitors.add(visit.session_id);
+    if (visit.visit_date >= monthStart) monthVisitors.add(visit.session_id);
     if (visit.visit_date >= weekStart) weekVisitors.add(visit.session_id);
     if (visit.visit_date === today) todayVisitors.add(visit.session_id);
   }

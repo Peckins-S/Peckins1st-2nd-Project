@@ -37,6 +37,9 @@ const fotmobLeagueStatsUrls = {
 };
 
 const globalLeagueNames = {
+  "775": ["UEFA Champions League", "Europe", "UCL"],
+  "776": ["UEFA Europa League", "Europe", "UEL"],
+  "20296": ["UEFA Conference League", "Europe", "UECL"],
   "770": ["Major League Soccer", "USA", "MLS"],
   "8301": ["National Women's Soccer League", "USA", "NWSL"],
   "760": ["Liga MX", "Mexico", "MX"],
@@ -100,7 +103,7 @@ const globalLeagueNames = {
 };
 
 const competitionOrder = [
-  "700", "740", "720", "730", "710",
+  "775", "776", "20296", "700", "740", "720", "730", "710",
   "715", "725", "630", "745", "760", "23541", "770", "21231", "3946", "3901",
   "735", "3939", "3907", "3955", "750", "3945", "3960", "8376", "640", "650",
   "660", "680", "670", "620", "8316",
@@ -153,6 +156,7 @@ const elements = {
   headerDate: document.querySelector("#header-date"),
   leagueFilters: document.querySelector("#league-filters"),
   dateStrip: document.querySelector("#date-strip"),
+  datePicker: document.querySelector("#date-picker"),
   matchList: document.querySelector("#match-list"),
   matchCount: document.querySelector("#match-count"),
   lastUpdated: document.querySelector("#last-updated"),
@@ -285,6 +289,7 @@ function compareCompetitions(a, b) {
 
 function renderDateStrip() {
   const today = new Date();
+  elements.datePicker.value = `${state.selectedDate.slice(0, 4)}-${state.selectedDate.slice(4, 6)}-${state.selectedDate.slice(6, 8)}`;
   elements.dateStrip.innerHTML = Array.from({ length: 11 }, (_, index) => {
     const date = new Date(today);
     date.setDate(today.getDate() + index - 3);
@@ -1564,6 +1569,13 @@ elements.dateStrip.addEventListener("click", (event) => {
   const button = event.target.closest("[data-date]");
   if (!button) return;
   state.selectedDate = button.dataset.date;
+  renderDateStrip();
+  loadData();
+});
+
+elements.datePicker.addEventListener("change", () => {
+  if (!elements.datePicker.value) return;
+  state.selectedDate = elements.datePicker.value.replace(/-/g, "");
   renderDateStrip();
   loadData();
 });

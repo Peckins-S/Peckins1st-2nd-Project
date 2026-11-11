@@ -25,8 +25,10 @@ const adminElements = {
   newPassword: document.querySelector("#new-password"),
   confirmPassword: document.querySelector("#confirm-password"),
   passwordResetButton: document.querySelector("#password-reset-button"),
+  workspace: document.querySelector("#admin-workspace"),
   dashboard: document.querySelector("#admin-dashboard"),
   dashboardRefresh: document.querySelector("#dashboard-refresh"),
+  visitorsRefresh: document.querySelector("[data-refresh-visitors]"),
   liveCount: document.querySelector("#dashboard-live-count"),
   upcomingCount: document.querySelector("#dashboard-upcoming-count"),
   finishedCount: document.querySelector("#dashboard-finished-count"),
@@ -81,6 +83,7 @@ function setSignedIn(user) {
   const isAdmin = Boolean(user && (user.email || "").toLowerCase() === adminEmail);
   adminElements.login.hidden = isAdmin;
   adminElements.passwordReset.hidden = true;
+  adminElements.workspace.hidden = !isAdmin;
   adminElements.dashboard.hidden = !isAdmin;
   adminElements.settingsForm.hidden = !isAdmin;
   adminElements.notice.hidden = isAdmin;
@@ -416,6 +419,12 @@ adminElements.dashboardRefresh.addEventListener("click", async () => {
   adminElements.dashboardRefresh.disabled = false;
 });
 
+adminElements.visitorsRefresh.addEventListener("click", async () => {
+  adminElements.visitorsRefresh.disabled = true;
+  await loadVisitorStats();
+  adminElements.visitorsRefresh.disabled = false;
+});
+
 adminElements.signOutButton.addEventListener("click", async () => {
   const { error } = await supabaseClient.auth.signOut();
   if (error) {
@@ -431,6 +440,34 @@ adminElements.signOutButton.addEventListener("click", async () => {
     setNotice("You have signed out, but the server session could not be cleared. Close this page and try again.", "error");
   }
 });
+
+const adminSections = [...document.querySelectorAll("[data-admin-section]")];
+function setActiveAdminSection(sectionId) {
+  adminSections.forEach((link) => {
+    if (link.dataset.adminSection === sectionId) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
+}
+
+adminSections.forEach((link) => {
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    const section = document.getElementById(link.dataset.adminSection);
+    if (!section) return;
+    setActiveAdminSection(section.id);
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});
+
+if ("IntersectionObserver" in window) {
+  const sectionObserver = new IntersectionObserver((entries) => {
+    const activeEntry = entries
+      .filter((entry) => entry.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (activeEntry) setActiveAdminSection(activeEntry.target.id);
+  }, { rootMargin: "-15% 0px -65% 0px", threshold: [0, 0.1, 0.25, 0.5] });
+  document.querySelectorAll(".admin-section-anchor").forEach((section) => sectionObserver.observe(section));
+}
 
 renderLeagueOptions();
 if (!validConfig()) {

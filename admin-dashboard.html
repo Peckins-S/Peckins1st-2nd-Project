@@ -65,9 +65,24 @@
         </form>
       </section>
 
+      <div class="admin-workspace-layout" id="admin-workspace" hidden>
+        <aside class="admin-sidebar" aria-label="Admin sections">
+          <p class="admin-sidebar-label">WORKSPACE</p>
+          <nav class="admin-side-nav" aria-label="Admin navigation">
+            <a href="#dashboard-section" data-admin-section="dashboard-section" aria-current="page"><span aria-hidden="true">⌂</span>Dashboard</a>
+            <a href="#league-settings" data-admin-section="league-settings"><span aria-hidden="true">⚽</span>Leagues</a>
+            <a href="#notification-settings" data-admin-section="notification-settings"><span aria-hidden="true">◉</span>Notifications</a>
+            <a href="#ad-settings-card" data-admin-section="ad-settings-card"><span aria-hidden="true">▣</span>Adverts</a>
+            <a href="#visitor-section" data-admin-section="visitor-section"><span aria-hidden="true">↗</span>Visitors</a>
+            <a href="#general-settings" data-admin-section="general-settings"><span aria-hidden="true">⚙</span>Settings</a>
+          </nav>
+          <button class="admin-side-signout" id="sign-out-button" type="button"><span aria-hidden="true">↪</span>Sign out</button>
+        </aside>
+        <div class="admin-workspace-content">
       <section class="admin-dashboard" id="admin-dashboard" hidden aria-label="Admin dashboard">
+        <section id="dashboard-section" class="admin-section-anchor" aria-labelledby="dashboard-title">
         <div class="admin-card-heading">
-          <div><p class="admin-card-kicker">OVERVIEW</p><h2>Today at a glance</h2></div>
+          <div><p class="admin-card-kicker">OVERVIEW</p><h2 id="dashboard-title">Today at a glance</h2></div>
           <button class="admin-secondary-button" id="dashboard-refresh" type="button">Refresh overview</button>
         </div>
         <div class="admin-info-grid">
@@ -97,52 +112,47 @@
               <div><dt>Popup ad</dt><dd id="dashboard-ad-status">—</dd></div>
             </dl>
           </article>
-          <article class="admin-card admin-info-card">
-            <p class="admin-card-kicker">VISITORS</p>
-            <div class="admin-stat-row">
-              <span>Today <strong id="dashboard-visits-today">—</strong></span>
-              <span>This week <strong id="dashboard-visits-week">—</strong></span>
-              <span>This month <strong id="dashboard-visits-month">—</strong></span>
-            </div>
-            <p class="admin-help" id="dashboard-visits-status">Loading actual anonymous visitor counts…</p>
-          </article>
+
         </div>
         <p class="admin-migration-notice" id="admin-migration-notice" hidden>
           Apply the updated <code>supabase-schema.sql</code> in Supabase SQL Editor to enable visitor statistics and popup ads.
         </p>
+        </section>
       </section>
 
       <form class="admin-form" id="settings-form" hidden>
-        <section class="admin-card">
+        <section class="admin-card admin-section-anchor" id="general-settings">
           <div class="admin-card-heading">
-            <div><p class="admin-card-kicker">SITE</p><h2>Branding & announcement</h2></div>
+            <div><p class="admin-card-kicker">SETTINGS</p><h2>Site identity</h2></div>
           </div>
           <label class="admin-field">
             <span>Site name</span>
             <input id="brand-name" name="brand-name" type="text" maxlength="32" required>
           </label>
-          <label class="admin-field">
-            <span>Announcement banner <small>Optional · 180 characters max</small></span>
-            <textarea id="announcement" name="announcement" maxlength="180" rows="3" placeholder="Share a short update with visitors"></textarea>
-          </label>
+
         </section>
 
-        <section class="admin-card" id="ad-settings-card">
+        <section class="admin-card admin-section-anchor" id="notification-settings">
+          <div class="admin-card-heading"><div><p class="admin-card-kicker">NOTIFICATIONS</p><h2>Announcement banner</h2></div></div>
+          <label class="admin-field"><span>Message <small>Optional · 180 characters max</small></span><textarea id="announcement" name="announcement" maxlength="180" rows="3" placeholder="Share a short update with visitors"></textarea></label>
+        </section>
+
+        <section class="admin-card admin-section-anchor" id="ad-settings-card">
           <div class="admin-card-heading">
-            <div><p class="admin-card-kicker">PUBLIC SITE</p><h2>Occasional popup ad</h2></div>
+            <div><p class="admin-card-kicker">ADVERTS</p><h2>Occasional popup advert</h2></div>
           </div>
           <p class="admin-help">A 90+minutes promo is active by default. Replace it with sponsor details or turn it off. Visitors can dismiss it; it appears at most once every 24 hours per browser.</p>
           <label class="admin-check-field">
             <input id="ad-enabled" name="ad-enabled" type="checkbox">
-            <span>Show popup ad on the public website</span>
+            <span>Show popup advert on the public website</span>
           </label>
           <label class="admin-field">
-            <span>Ad headline</span>
+            <span>Advert headline</span>
             <input id="ad-title" name="ad-title" type="text" maxlength="60" placeholder="Sponsored message">
           </label>
           <label class="admin-field">
-            <span>Ad message</span>
-            <textarea id="ad-message" name="ad-message" maxlength="180" rows="3" placeholder="Write the short ad message"></textarea>
+            <span>Advert message</span>
+            <textarea id="ad-message" name="ad-message" maxlength="180" rows="3" placeholder="Write the short advert message"></textarea>
           </label>
           <label class="admin-field">
             <span>Button label</span>
@@ -154,22 +164,33 @@
           </label>
         </section>
 
-        <section class="admin-card">
+        <section class="admin-card admin-section-anchor" id="league-settings">
           <div class="admin-card-heading">
-            <div><p class="admin-card-kicker">FIXTURES</p><h2>Featured competitions</h2></div>
+            <div><p class="admin-card-kicker">LEAGUES</p><h2>Featured competitions</h2></div>
           </div>
           <p class="admin-help">Choose which competitions are prioritized. All available leagues remain visible.</p>
           <div class="admin-league-grid" id="league-options"></div>
         </section>
 
+        <section class="admin-card admin-section-anchor" id="visitor-section">
+          <div class="admin-card-heading"><div><p class="admin-card-kicker">VISITORS</p><h2>Visitor overview</h2></div><button class="admin-secondary-button" type="button" data-refresh-visitors>Refresh counts</button></div>
+          <div class="admin-stat-row admin-visitor-stats">
+            <span>Today <strong id="dashboard-visits-today">—</strong></span>
+            <span>This week <strong id="dashboard-visits-week">—</strong></span>
+            <span>This month <strong id="dashboard-visits-month">—</strong></span>
+          </div>
+          <p class="admin-help" id="dashboard-visits-status">Loading actual anonymous visitor counts…</p>
+        </section>
+
         <div class="admin-form-actions">
           <span class="admin-signed-in" id="signed-in-email"></span>
           <div>
-            <button class="admin-secondary-button" id="sign-out-button" type="button">Sign out</button>
             <button class="admin-primary-button" id="save-button" type="submit">Save changes</button>
           </div>
         </div>
       </form>
+        </div>
+      </div>
     </main>
   </body>
 </html>

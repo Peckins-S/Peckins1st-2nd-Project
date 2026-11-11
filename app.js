@@ -51,6 +51,7 @@ const globalLeagueNames = {
   "18505": ["Indian Football League", "India", "IFL"],
   "3951": ["Spanish Copa del Rey", "Spain", "CDR"],
   "3952": ["Coupe de France", "France", "CDF"],
+  "20381": ["Spanish Copa de la Reina", "Spain", "CDR"],
   "8315": ["Africa Cup of Nations Qualifying", "Africa", "AFCON"],
   "2395": ["UEFA Nations League", "Europe", "UNL"],
   "20114": ["UEFA European Under-21 Championship Qualifying", "Europe", "U21"],

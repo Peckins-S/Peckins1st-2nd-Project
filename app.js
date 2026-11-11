@@ -5,6 +5,11 @@ const leagues = [
   { id: "ita.1", espnId: "730", name: "Serie A", country: "Italy", mark: "SA" },
   { id: "fra.1", espnId: "710", name: "Ligue 1", country: "France", mark: "L1" }
 ];
+const internationalCompetitions = [
+  { id: "espn-775", espnId: "775", name: "UEFA Champions League", country: "Europe", mark: "UCL" },
+  { id: "espn-776", espnId: "776", name: "UEFA Europa League", country: "Europe", mark: "UEL" },
+  { id: "espn-20296", espnId: "20296", name: "UEFA Conference League", country: "Europe", mark: "UECL" }
+];
 
 const featuredLeagueChoices = [
   { id: "700", name: "Premier League" },
@@ -119,7 +124,7 @@ const openLigaScheduleRequests = new Map();
 
 const state = {
   matches: [],
-  competitions: [...leagues],
+  competitions: [...leagues, ...internationalCompetitions],
   standings: new Map(),
   leagueStats: new Map(),
   selectedDate: dateKey(new Date()),
@@ -307,7 +312,7 @@ function renderDateStrip() {
 function getEventLeague(event, fallbackId) {
   const leagueUid = event.uid && event.uid.match(/~l:(\d+)/);
   const espnId = leagueUid ? leagueUid[1] : "";
-  const knownLeague = leagues.find((league) => league.espnId === espnId);
+  const knownLeague = [...leagues, ...internationalCompetitions].find((league) => league.espnId === espnId);
   if (knownLeague) return knownLeague;
 
   const mapped = globalLeagueNames[espnId];
@@ -370,22 +375,29 @@ function mapOpenLigaMatch(match, league) {
   const isLive = !match.matchIsFinished && ageInHours >= 0 && ageInHours <= 4;
   const home = match.team1 || {};
   const away = match.team2 || {};
-  const competitionId = `openligadb-${match.leagueId || league.leagueId}`;
   const competitionName = (match.leagueName || league.leagueName || "Football")
     .replace(/\s+\d{4}(?:\/\d{2,4})?.*$/, "");
+  const internationalCompetition = internationalCompetitions.find((item) =>
+    item.name.toLowerCase().includes("champions league") && /champions league/i.test(competitionName)
+    || item.name.toLowerCase().includes("europa league") && /europa league/i.test(competitionName)
+    || item.name.toLowerCase().includes("conference league") && /conference league/i.test(competitionName)
+  );
+  const competitionId = internationalCompetition
+    ? internationalCompetition.id : `openligadb-${match.leagueId || league.leagueId}`;
 
   return {
     id: `openligadb-${match.matchID}`,
     provider: "openligadb",
     league: {
       id: competitionId,
-      espnId: match.leagueShortcut || league.leagueShortcut,
-      name: competitionName,
+      espnId: internationalCompetition ? internationalCompetition.espnId : match.leagueShortcut || league.leagueShortcut,
+      name: internationalCompetition ? internationalCompetition.name : competitionName,
       country: /champions league|europa league|conference league/i.test(competitionName)
         ? "Europe"
         : /premier league/i.test(competitionName) ? "England"
           : /laliga|la liga/i.test(competitionName) ? "Spain" : "Germany",
-      mark: /champions league/i.test(competitionName) ? "UCL"
+      mark: internationalCompetition ? internationalCompetition.mark
+        : /champions league/i.test(competitionName) ? "UCL"
         : /europa league/i.test(competitionName) ? "UEL"
           : /conference league/i.test(competitionName) ? "UECL"
             : /premier league/i.test(competitionName) ? "PL"
@@ -766,7 +778,7 @@ async function fetchMatches() {
   }
 
   state.matches.sort((a, b) => new Date(a.date) - new Date(b.date));
-  const competitionMap = new Map([...leagues, ...state.matches.map((match) => match.league)]
+  const competitionMap = new Map([...leagues, ...internationalCompetitions, ...state.matches.map((match) => match.league)]
     .map((league) => [league.id, league]));
   state.competitions = [...competitionMap.values()].sort(compareCompetitions);
   if (state.selectedLeague !== "all"

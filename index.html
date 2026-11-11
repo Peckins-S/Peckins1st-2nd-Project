@@ -44,6 +44,7 @@
       <div class="topbar-right"><span class="feed-dot"></span><span class="date-label" id="header-date"></span></div>
     </header>
 
+
     <main class="app-layout" id="fixtures">
       <aside class="sidebar" id="competitions" aria-label="Competition filters">
         <p class="sidebar-heading">COMPETITIONS</p>
@@ -51,6 +52,7 @@
         <div id="league-filters"></div>
         <div class="sidebar-foot"><span class="feed-dot"></span> Soccer fixtures from leagues worldwide</div>
       </aside>
+
 
       <section class="content">
         <aside class="site-announcement" id="site-announcement" aria-live="polite" hidden></aside>
@@ -64,6 +66,7 @@
           </button>
         </div>
 
+
         <div class="date-picker-row">
           <div class="date-strip" id="date-strip" aria-label="Choose match date"></div>
           <label class="date-picker-label" for="date-picker">
@@ -71,6 +74,7 @@
             <input class="date-picker-input" id="date-picker" type="date">
           </label>
         </div>
+
 
         <section class="scoreboard" id="match-view" aria-label="Soccer fixtures">
           <div class="toolbar">
@@ -153,155 +157,6 @@
         <a class="advert-cta" id="popup-advert-cta" target="_blank" rel="noopener noreferrer"></a>
       </div>
     </aside>
-    <dialog class="player-dialog" id="player-dialog" aria-labelledby="player-dialog-title">
-      <div class="player-dialog-content">
-        <button class="player-dialog-close" type="button" aria-label="Close player details">×</button>
-        <div id="player-dialog-body"></div>
-      </div>
-    </dialog>
-  </body>
-</html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#101612">
-    <meta name="description" content="Follow upcoming soccer fixtures across Europe's major leagues.">
-    <title>90+minutes — Soccer Fixtures</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="supabase-config.js" defer></script>
-    
-    <script src="app.js" defer></script>
-  </head>
-  <body>
-    <header class="topbar">
-      <a class="brand" href="#" aria-label="90+minutes home">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 40 40" role="presentation">
-            <circle cx="20" cy="20" r="18" fill="#8be28a" stroke="#d8f5d5" stroke-width="1.5"/>
-            <path d="m20 4 5 3.7-1.9 5.8h-6.2L15 7.7 20 4Zm-14 10 5.8.6 2.4 5.8-4.3 4.3-5-2.5L4 18l2-4Zm28 0 2 4-.9 4.2-5 2.5-4.3-4.3 2.4-5.8 5.8-.6ZM12 31l5-2.3 3 3.1-1.2 4.1-5.3-.6L12 31Zm16 0-1.5 4.3-5.3.6-1.2-4.1 3-3.1 5 2.3Z" fill="#18351d" opacity=".88"/>
-            <text x="20" y="23" fill="#f2fff0" font-family="Arial, sans-serif" font-size="10" font-weight="700" text-anchor="middle">90</text>
-          </svg>
-        </span>
-        <span data-site-brand>90+minutes</span>
-      </a>
-      <nav class="primary-nav" aria-label="Main navigation">
-        <a class="primary-link" href="#scores" data-page="scores">Scores</a>
-        <a class="primary-link selected" href="#fixtures" data-page="fixtures">Fixtures</a>
-        <a class="primary-link" href="#standings" data-page="standings">Standings</a>
-        <a class="primary-link" href="#stats" data-page="stats">Stats</a>
-        <a class="primary-link" id="admin-nav-link" href="#admin" data-page="admin" hidden>Admin</a>
-      </nav>
-      <div class="topbar-right"><span class="feed-dot"></span><span class="date-label" id="header-date"></span></div>
-    </header>
-
-    <main class="app-layout" id="fixtures">
-      <aside class="sidebar" id="competitions" aria-label="Competition filters">
-        <p class="sidebar-heading">COMPETITIONS</p>
-        <button class="league-filter selected" type="button" data-league="all"><span class="side-icon">◎</span> All competitions</button>
-        <div id="league-filters"></div>
-        <div class="sidebar-foot"><span class="feed-dot"></span> Soccer fixtures from leagues worldwide</div>
-      </aside>
-
-      <section class="content">
-        <aside class="site-announcement" id="site-announcement" aria-live="polite" hidden></aside>
-        <div class="content-heading">
-          <div>
-            <p class="section-kicker">FOOTBALL / FIXTURES</p>
-            <h1>Matches <span class="match-count" id="match-count">0</span></h1>
-          </div>
-          <button class="refresh-button" id="refresh-button" type="button" aria-label="Refresh fixtures">
-            <span aria-hidden="true">↻</span><span class="refresh-text">Refresh</span>
-          </button>
-        </div>
-
-        <div class="date-picker-row">
-          <div class="date-strip" id="date-strip" aria-label="Choose match date"></div>
-          <label class="date-picker-label" for="date-picker">
-            Choose date
-            <input class="date-picker-input" id="date-picker" type="date">
-          </label>
-        </div>
-
-        <section class="scoreboard" id="match-view" aria-label="Soccer fixtures">
-          <div class="toolbar">
-            <div class="filter-tabs" role="tablist" aria-label="Filter matches">
-              <button class="filter-tab" type="button" data-filter="all" role="tab" aria-selected="false">All</button>
-              <button class="filter-tab" type="button" data-filter="live" role="tab" aria-selected="false"><span class="tab-live-dot"></span> Live</button>
-              <button class="filter-tab active" type="button" data-filter="upcoming" role="tab" aria-selected="true">Upcoming</button>
-              <button class="filter-tab" type="button" data-filter="finished" role="tab" aria-selected="false">Finished</button>
-            </div>
-            <div class="toolbar-controls">
-              <label class="search-box">
-                <span class="sr-only">Search teams or leagues</span>
-                <span aria-hidden="true">⌕</span>
-                <input type="search" id="search-input" placeholder="Search" autocomplete="off">
-              </label>
-              <button class="favorites-toggle" id="favorites-toggle" type="button" aria-pressed="false" aria-label="Show favorite matches">☆</button>
-            </div>
-          </div>
-          <div id="match-list" class="match-list" aria-live="polite"></div>
-          <p class="last-updated" id="last-updated" aria-live="polite">Loading fixtures…</p>
-        </section>
-        <section class="scoreboard standings-view" id="standings-view" aria-label="League standings" hidden>
-          <div class="standings-heading">
-            <h2 id="standings-title">League standings</h2>
-            <span id="standings-source">Loading table…</span>
-          </div>
-          <div id="standings-content" aria-live="polite"></div>
-        </section>
-        <section class="scoreboard league-stats-view" id="league-stats-view" aria-label="League player statistics" hidden>
-          <div class="standings-heading">
-            <h2 id="league-stats-title">League leaders</h2>
-            <span id="league-stats-source">Season player stats</span>
-          </div>
-          <div id="league-stats-content" aria-live="polite"></div>
-        </section>
-        <section class="scoreboard match-detail-view" id="match-detail-view" aria-label="Match centre" hidden>
-          <div class="detail-toolbar">
-            <button class="back-button" id="detail-back" type="button">← Back to matches</button>
-            <span class="detail-updated" id="detail-updated"></span>
-          </div>
-          <div id="match-detail-content" aria-live="polite"></div>
-        </section>
-        <footer class="footer">
-          No streams, just fixtures and scores. Anonymous browser visits are deduplicated daily; no IP addresses or personal details are stored.
-        </footer>
-      </section>
-    </main>
-    <main class="admin-embedded-shell" id="admin-panel-view" hidden>
-      <iframe id="admin-panel-frame" title="90+minutes admin panel" loading="lazy"></iframe>
-    </main>
-    <dialog class="admin-auth-dialog" id="admin-auth-dialog" aria-labelledby="admin-auth-title">
-      <div class="admin-auth-content">
-        <button class="player-dialog-close" id="admin-auth-close" type="button" aria-label="Close admin sign in">×</button>
-        <p class="admin-card-kicker">90+MINUTES / CONTROL ROOM</p>
-        <h2 id="admin-auth-title">Admin sign in</h2>
-        <p class="admin-auth-help">Sign in with the authorized site admin account to open the control panel.</p>
-        <p class="admin-auth-notice" id="admin-auth-notice" role="status" aria-live="polite" hidden></p>
-        <form id="admin-auth-form">
-          <label class="admin-field">
-            <span>Email</span>
-            <input id="admin-auth-email" type="email" autocomplete="username" required>
-          </label>
-          <label class="admin-field">
-            <span>Password</span>
-            <input id="admin-auth-password" type="password" autocomplete="current-password" required>
-          </label>
-          <button class="admin-primary-button" id="admin-auth-submit" type="submit">Sign in</button>
-          <button class="admin-reset-link" id="admin-reset-request" type="button">Forgot password?</button>
-        </form>
-      </div>
-    </dialog>
-    <dialog class="ad-dialog" id="ad-dialog" aria-labelledby="ad-dialog-title">
-      <div class="ad-dialog-content">
-        <button class="ad-dialog-close" id="ad-dialog-close" type="button" aria-label="Close advertisement">×</button>
-        <p class="ad-dialog-label">Advertisement</p>
-        <h2 id="ad-dialog-title"></h2>
-        <p class="ad-dialog-message" id="ad-dialog-message"></p>
-        <a class="ad-dialog-link" id="ad-dialog-link" target="_blank" rel="noopener noreferrer"></a>
-      </div>
-    </dialog>
     <dialog class="player-dialog" id="player-dialog" aria-labelledby="player-dialog-title">
       <div class="player-dialog-content">
         <button class="player-dialog-close" type="button" aria-label="Close player details">×</button>

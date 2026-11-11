@@ -257,7 +257,9 @@ async function loadVisitorStats() {
     adminElements.visitsToday.textContent = "—";
     adminElements.visitsWeek.textContent = "—";
     adminElements.visitsMonth.textContent = "—";
-    adminElements.visitsStatus.textContent = "Visitor stats unavailable: " + error.message;
+    adminElements.visitsStatus.textContent = ["PGRST202", "PGRST205"].includes(error.code)
+      ? "Visitor database is not set up. Run supabase-schema.sql in Supabase SQL Editor."
+      : "Visitor stats unavailable: " + error.message;
     return;
   }
   if (visits.some((visit) => !visit.visit_date || !visit.session_id)) {

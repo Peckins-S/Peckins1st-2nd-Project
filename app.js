@@ -45,6 +45,27 @@ const globalLeagueNames = {
   "775": ["UEFA Champions League", "Europe", "UCL"],
   "776": ["UEFA Europa League", "Europe", "UEL"],
   "20296": ["UEFA Conference League", "Europe", "UECL"],
+  "19483": ["UEFA Women's Champions League", "Europe", "UWCL"],
+  "23390": ["English WSL Players Cup", "England", "WPC"],
+  "24079": ["UEFA Women's Europa Cup", "Europe", "UWEC"],
+  "18505": ["Indian Football League", "India", "IFL"],
+  "3951": ["Spanish Copa del Rey", "Spain", "CDR"],
+  "3952": ["Coupe de France", "France", "CDF"],
+  "8315": ["Africa Cup of Nations Qualifying", "Africa", "AFCON"],
+  "2395": ["UEFA Nations League", "Europe", "UNL"],
+  "20114": ["UEFA European Under-21 Championship Qualifying", "Europe", "U21"],
+  "18481": ["English EFL Trophy", "England", "EFLT"],
+  "23284": ["Copa Bolivia", "Bolivia", "BOL"],
+  "18914": ["SAFF Championship", "South Asia", "SAFF"],
+  "19267": ["Concacaf Nations League", "North America", "CNL"],
+  "23286": ["Northern Super League", "Canada", "NSL"],
+  "8107": ["Copa Argentina", "Argentina", "CA"],
+  "8313": ["Copa Colombia", "Colombia", "CC"],
+  "5454": ["CONMEBOL Sudamericana", "South America", "CS"],
+  "2466": ["AFC Champions League Two", "Asia", "ACL2"],
+  "5331": ["Scottish League Challenge Cup", "Scotland", "CHC"],
+  "8312": ["Copa Chile", "Chile", "CC"],
+  "18969": ["Concacaf W Championship", "North America", "CWC"],
   "770": ["Major League Soccer", "USA", "MLS"],
   "8301": ["National Women's Soccer League", "USA", "NWSL"],
   "760": ["Liga MX", "Mexico", "MX"],
@@ -318,7 +339,8 @@ function getEventLeague(event, fallbackId) {
   const mapped = globalLeagueNames[espnId];
   const seasonSlug = event.season && event.season.slug || "";
   const cleanSlug = seasonSlug.replace(/^\d{4}(?:-\d{2})?-/, "");
-  const slugName = cleanSlug && !["regular-season", "fall-season", "first-round", "second-round", "group-stage"].includes(cleanSlug)
+  const isTournamentStage = /(?:^|-)(?:league-phase|group-stage|playoffs?|quarterfinals?|semifinals?|finals?|first-round|second-round|third-round|seventh-round|round-of-\d+)(?:$|-)/i.test(cleanSlug);
+  const slugName = cleanSlug && !isTournamentStage
     ? cleanSlug.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ")
     : "";
   const name = mapped ? mapped[0] : slugName || `Soccer competition ${espnId || fallbackId}`;
@@ -1325,12 +1347,16 @@ function renderMatches() {
   elements.matchCount.textContent = String(matches.length);
   if (!matches.length) {
     const noMatchesForDate = !state.matches.length && state.filter !== "live";
-    const title = noMatchesForDate
+    const noUpcomingMatches = state.filter === "upcoming" && state.matches.length > 0;
+    const title = noUpcomingMatches
+      ? "No upcoming matches for this date"
+      : noMatchesForDate
       ? state.matchError ? "Fixtures could not be loaded" : "No matches for this date"
       : state.filter === "live" && !state.matches.length ? "No live matches right now" : "No matches found";
     const message = state.matchError
       ? "Please try again in a little while."
-      : noMatchesForDate ? "Check tomorrow or choose another date." : "Try another competition, filter, or search.";
+      : noUpcomingMatches ? "Try All to see every match, or choose another date."
+        : noMatchesForDate ? "Check tomorrow or choose another date." : "Try another competition, filter, or search.";
     elements.matchList.innerHTML = `<div class="empty-state"><strong>${title}</strong>${message}</div>`;
     return;
   }

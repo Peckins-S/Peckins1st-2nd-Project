@@ -741,7 +741,7 @@ async function recordSiteVisit() {
       sessionId = localStorage.getItem(cookieName);
       if (!uuidPattern.test(sessionId || "")) sessionId = crypto.randomUUID();
       const secure = location.protocol === "https:" ? "; Secure" : "";
-      document.cookie = cookieName + "=" + sessionId + "; Max-Age=2592000; Path=/; SameSite=Lax" + secure;
+      document.cookie = cookieName + "=" + sessionId + "; Max-Age=3888000; Path=/; SameSite=Lax" + secure;
       if (!document.cookie.split("; ").some((cookie) => cookie === cookieName + "=" + sessionId)) {
         localStorage.setItem(cookieName, sessionId);
       }

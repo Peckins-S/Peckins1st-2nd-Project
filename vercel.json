@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/admin-panel.js": {
+      "includeFiles": "admin-dashboard.html"
+    }
+  },
+  "rewrites": [
+    { "source": "/admin-panel", "destination": "/api/admin-panel" },
+    { "source": "/admin-panel.html", "destination": "/api/admin-panel" },
+    { "source": "/admin-dashboard", "destination": "/api/admin-panel" },
+    { "source": "/admin-dashboard.html", "destination": "/api/admin-panel" }
+  ]
+}

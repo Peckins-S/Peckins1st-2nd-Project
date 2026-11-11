@@ -18,6 +18,7 @@ const featuredLeagueChoices = [
   { id: "745", name: "Argentina Primera División" }
 ];
 const defaultFeaturedCompetitionIds = featuredLeagueChoices.map((league) => league.id);
+let featuredCompetitionIds = new Set(defaultFeaturedCompetitionIds);
 const defaultSitePromotion = {
   ad_enabled: true,
   ad_title: "Your matchday, all in one place",
@@ -110,11 +111,8 @@ const competitionOrder = [
   "20226", "3959", "20865", "2391", "18000", "5487", "5499"
 ];
 const competitionRanks = new Map(competitionOrder.map((id, index) => [id, index]));
-const lastVisibleCompetitionRank = competitionRanks.get("745");
-const defaultVisibleCompetitionIds = new Set(
-  competitionOrder.slice(0, lastVisibleCompetitionRank + 1)
-);
-let visibleCompetitionIds = new Set(defaultVisibleCompetitionIds);
+const openLigaScheduleCache = new Map();
+const openLigaScheduleRequests = new Map();
 
 const state = {
   matches: [],
@@ -135,6 +133,7 @@ const state = {
   detailError: "",
   detailRequest: 0,
   matchError: "",
+  matchSource: "",
   playerDialog: document.querySelector("#player-dialog"),
   playerDialogBody: document.querySelector("#player-dialog-body")
 };
@@ -276,6 +275,9 @@ function renderLeagueFilters() {
 }
 
 function compareCompetitions(a, b) {
+  const aFeatured = featuredCompetitionIds.has(String(a.espnId || ""));
+  const bFeatured = featuredCompetitionIds.has(String(b.espnId || ""));
+  if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;
   const aRank = competitionRanks.get(String(a.espnId || "")) ?? Number.MAX_SAFE_INTEGER;
   const bRank = competitionRanks.get(String(b.espnId || "")) ?? Number.MAX_SAFE_INTEGER;
   return aRank - bRank || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
@@ -347,6 +349,107 @@ async function fetchJson(url) {
   return response.json();
 }
 
+function getSeasonStartYear(date) {
+  return date.getMonth() >= 6 ? date.getFullYear() : date.getFullYear() - 1;
+}
+
+function mapOpenLigaMatch(match, league) {
+  const date = match.matchDateTimeUTC;
+  const timestamp = Date.parse(date);
+  if (!Number.isFinite(timestamp)) return null;
+
+  const results = Array.isArray(match.matchResults) ? match.matchResults : [];
+  const result = results.find((item) => item.resultTypeKind === "After90Minutes")
+    || results.slice().sort((a, b) => b.resultOrderID - a.resultOrderID)[0];
+  const ageInHours = (Date.now() - timestamp) / 3600000;
+  const isLive = !match.matchIsFinished && ageInHours >= 0 && ageInHours <= 4;
+  const home = match.team1 || {};
+  const away = match.team2 || {};
+  const competitionId = `openligadb-${match.leagueId || league.leagueId}`;
+  const competitionName = (match.leagueName || league.leagueName || "Football")
+    .replace(/\s+\d{4}(?:\/\d{2,4})?.*$/, "");
+
+  return {
+    id: `openligadb-${match.matchID}`,
+    provider: "openligadb",
+    league: {
+      id: competitionId,
+      espnId: match.leagueShortcut || league.leagueShortcut,
+      name: competitionName,
+      country: /champions league|europa league|conference league/i.test(competitionName)
+        ? "Europe"
+        : /premier league/i.test(competitionName) ? "England"
+          : /laliga|la liga/i.test(competitionName) ? "Spain" : "Germany",
+      mark: /champions league/i.test(competitionName) ? "UCL"
+        : /europa league/i.test(competitionName) ? "UEL"
+          : /conference league/i.test(competitionName) ? "UECL"
+            : /premier league/i.test(competitionName) ? "PL"
+              : /laliga|la liga/i.test(competitionName) ? "LL"
+                : /2\./.test(competitionName) ? "2BL" : "BL"
+    },
+    home: { id: String(home.teamId || ""), name: home.teamName || "Home", displayName: home.teamName || "Home" },
+    away: { id: String(away.teamId || ""), name: away.teamName || "Away", displayName: away.teamName || "Away" },
+    homeScore: result && result.pointsTeam1,
+    awayScore: result && result.pointsTeam2,
+    date,
+    state: match.matchIsFinished ? "post" : isLive ? "in" : "pre",
+    status: match.matchIsFinished ? "Full time" : isLive ? "LIVE" : "",
+    note: match.group && match.group.groupName || ""
+  };
+}
+
+async function fetchOpenLigaSchedule(season) {
+  const cached = openLigaScheduleCache.get(season);
+  if (cached && Date.now() - cached.fetchedAt < 5 * 60 * 1000) return cached.matches;
+  if (openLigaScheduleRequests.has(season)) return openLigaScheduleRequests.get(season);
+
+  const request = (async () => {
+    const available = await fetchJson(`https://api.openligadb.de/getavailableleagues/${season}`);
+    const footballLeagues = available.filter((league) => league
+      && Number(league.leagueSeason) === season
+      && (!league.sport || /fu(?:ß|ss)ball/i.test(league.sport.sportName || ""))
+      && !/test/i.test(league.leagueName || ""));
+    const competitions = [
+      { pattern: /^1\.\s*(?:fu(?:ß|ss)ball-)?bundesliga/i, preferred: "bl1" },
+      { pattern: /^2\.\s*(?:fu(?:ß|ss)ball-)?bundesliga/i, preferred: "bl2" },
+      { pattern: /^premier league \d/i, preferred: "pl" },
+      { pattern: /^laliga ea sports \d|^la liga español/i, preferred: "la1" },
+      { pattern: /^champions league \d/i, preferred: "ucl" },
+      { pattern: /^europa league \d/i, preferred: `uel${season}` },
+      { pattern: /^conference league \d/i, preferred: `uecl${season}` }
+    ];
+    const selected = competitions.map((competition) => {
+      const candidates = footballLeagues.filter((league) => competition.pattern.test(league.leagueName || ""));
+      return candidates.find((league) => league.leagueShortcut === competition.preferred)
+        || candidates.sort((a, b) => (a.leagueShortcut || "").length - (b.leagueShortcut || "").length)[0];
+    }).filter(Boolean);
+
+    if (!selected.length) throw new Error(`No backup competition schedules are available for ${season}.`);
+    const results = await Promise.allSettled(selected.map(async (league) => ({
+      league,
+      matches: await fetchJson(`https://api.openligadb.de/getmatchdata/${encodeURIComponent(league.leagueShortcut)}/${season}`)
+    })));
+    const successful = results.filter((result) => result.status === "fulfilled");
+    if (!successful.length) {
+      throw new Error(`The backup fixture feed could not load schedules for ${season}.`);
+    }
+
+    const matches = successful.flatMap((result) =>
+      result.value.matches.map((match) => mapOpenLigaMatch(match, result.value.league)).filter(Boolean)
+    );
+    openLigaScheduleCache.set(season, { fetchedAt: Date.now(), matches });
+    if (successful.length !== selected.length) {
+      console.warn("Some backup competition schedules could not be loaded.");
+    }
+    return matches;
+  })().finally(() => {
+    openLigaScheduleRequests.delete(season);
+  });
+
+  openLigaScheduleRequests.set(season, request);
+  return request;
+}
+
 function getSupabaseConfig() {
   const config = window.SUPABASE_CONFIG;
   if (!config || typeof config.url !== "string" || typeof config.anonKey !== "string"
@@ -379,19 +482,44 @@ function showAdminAuthNotice(message) {
   elements.adminAuthNotice.hidden = false;
 }
 
+async function syncAdminGateSession(session) {
+  const isAdmin = Boolean(session && session.access_token && session.user
+    && (session.user.email || "").toLowerCase() === siteAdminEmail);
+  const response = await fetch("/api/admin-session", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(isAdmin ? { access_token: session.access_token } : { logout: true })
+  });
+  if (!response.ok) throw new Error("Could not verify the admin session with the server.");
+}
+
 async function initializeSiteAdmin() {
   const config = getSupabaseConfig();
   if (!config || !window.supabase || typeof window.supabase.createClient !== "function") return;
 
   siteAdminClient = window.supabase.createClient(config.url, config.anonKey);
   elements.adminAuthEmail.value = siteAdminEmail;
-  const { data, error } = await siteAdminClient.auth.getUser();
+  const { data, error } = await siteAdminClient.auth.getSession();
   if (error && error.name !== "AuthSessionMissingError") {
     console.error("Could not check the site admin session.", error);
+    setSiteAdminUser(null);
+    return;
   }
-  setSiteAdminUser(data && data.user);
+  try {
+    await syncAdminGateSession(data && data.session);
+    setSiteAdminUser(data && data.session && data.session.user);
+  } catch (sessionError) {
+    console.error("Could not secure the admin session.", sessionError);
+    setSiteAdminUser(null);
+  }
   siteAdminClient.auth.onAuthStateChange((_event, session) => {
-    setSiteAdminUser(session && session.user);
+    syncAdminGateSession(session).then(() => {
+      setSiteAdminUser(session && session.user);
+    }).catch((sessionError) => {
+      console.error("Could not secure the admin session.", sessionError);
+      setSiteAdminUser(null);
+    });
   });
 }
 
@@ -428,6 +556,14 @@ elements.adminAuthForm.addEventListener("submit", async (event) => {
   if (!data.user || (data.user.email || "").toLowerCase() !== siteAdminEmail) {
     await siteAdminClient.auth.signOut();
     showAdminAuthNotice(`This panel is restricted to ${siteAdminEmail}.`);
+    return;
+  }
+  try {
+    await syncAdminGateSession(data.session);
+  } catch (sessionError) {
+    console.error("Could not secure the admin session.", sessionError);
+    await siteAdminClient.auth.signOut();
+    showAdminAuthNotice("Could not verify the admin session with the server. Please try again.");
     return;
   }
   setSiteAdminUser(data.user);
@@ -538,7 +674,7 @@ function applySiteSettings(settings) {
   if (Array.isArray(settings.featured_competitions)) {
     const selected = settings.featured_competitions
       .filter((id) => typeof id === "string" && defaultFeaturedCompetitionIds.includes(id));
-    if (selected.length) visibleCompetitionIds = new Set(selected);
+    if (selected.length) featuredCompetitionIds = new Set(selected);
   }
   maybeShowSiteAd(settings);
 }
@@ -580,15 +716,49 @@ async function loadPublicSiteSettings() {
 }
 
 async function fetchMatches() {
-  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?dates=${state.selectedDate}&limit=1000`;
-  const data = await fetchJson(url);
-  state.matches = (data.events || []).filter((event) => {
-    const leagueUid = event.uid && event.uid.match(/~l:(\d+)/);
-    return leagueUid && visibleCompetitionIds.has(leagueUid[1]);
-  }).map((event) => {
+  const selectedDate = parseDate(state.selectedDate);
+  const queryDates = [-1, 0, 1].map((offset) => {
+    const date = new Date(selectedDate);
+    date.setDate(date.getDate() + offset);
+    return dateKey(date);
+  });
+  const primaryResults = await Promise.allSettled(queryDates.map((date) =>
+    fetchJson(`https://site.api.espn.com/apis/site/v2/sports/soccer/all/scoreboard?dates=${date}&limit=1000`)
+  ));
+  const primaryEvents = new Map();
+  for (const result of primaryResults) {
+    if (result.status !== "fulfilled") continue;
+    for (const event of result.value.events || []) primaryEvents.set(String(event.id), event);
+  }
+  const primaryMatches = [...primaryEvents.values()]
+    .filter((event) => event.date && dateKey(new Date(event.date)) === state.selectedDate)
+    .map((event) => {
     const competition = getEventLeague(event, event.id);
     return mapEvent(event, competition);
   });
+
+  if (primaryMatches.length) {
+    state.matches = primaryMatches;
+    state.matchSource = "primary";
+  } else {
+    const season = getSeasonStartYear(selectedDate);
+    try {
+      state.matches = (await fetchOpenLigaSchedule(season))
+        .filter((match) => dateKey(new Date(match.date)) === state.selectedDate);
+      state.matchSource = state.matches.length ? "backup" : "primary";
+      if (!state.matches.length && primaryResults.every((result) => result.status === "rejected")) {
+        throw new Error("The backup feed returned no fixtures to confirm this date.");
+      }
+    } catch (error) {
+      state.matches = [];
+      state.matchSource = "";
+      if (primaryResults.every((result) => result.status === "rejected")) {
+        throw new Error(`The main fixture feed is unavailable, and the backup feed could not confirm this date: ${error.message}`);
+      }
+      console.warn("The backup fixture feed could not be loaded.", error);
+    }
+  }
+
   state.matches.sort((a, b) => new Date(a.date) - new Date(b.date));
   const competitionMap = new Map([...leagues, ...state.matches.map((match) => match.league)]
     .map((league) => [league.id, league]));
@@ -598,7 +768,7 @@ async function fetchMatches() {
     state.selectedLeague = "all";
   }
   renderLeagueFilters();
-  return 0;
+  return primaryResults.filter((result) => result.status === "rejected").length;
 }
 
 function flattenStandings(node) {
@@ -1120,7 +1290,7 @@ function renderMatch(match) {
       <div class="match-state">
         <span class="match-status ${status.className}">${escapeHtml(status.main)}</span>
         ${status.note ? `<span class="match-note">${escapeHtml(status.note)}</span>` : ""}
-        <button class="match-detail-link" type="button" data-match-detail="${escapeHtml(match.id)}">Match details</button>
+        ${match.provider === "openligadb" ? "" : `<button class="match-detail-link" type="button" data-match-detail="${escapeHtml(match.id)}">Match details</button>`}
       </div>
       <div class="teams">
         <div class="team">${clubBadge(match.home, "club-badge--fixture")}<span class="team-name">${escapeHtml(match.home.displayName || match.home.name || "Home")}</span></div>
@@ -1136,10 +1306,14 @@ function renderMatches() {
   const matches = getFilteredMatches();
   elements.matchCount.textContent = String(matches.length);
   if (!matches.length) {
-    const title = !state.matches.length
-      ? state.matchError ? "Fixtures could not be loaded" : "No matches scheduled"
-      : state.filter === "live" ? "No live matches right now" : "No matches found";
-    elements.matchList.innerHTML = `<div class="empty-state"><strong>${title}</strong>Try another date, competition, or filter.</div>`;
+    const noMatchesForDate = !state.matches.length && state.filter !== "live";
+    const title = noMatchesForDate
+      ? state.matchError ? "Fixtures could not be loaded" : "No matches for this date"
+      : state.filter === "live" && !state.matches.length ? "No live matches right now" : "No matches found";
+    const message = state.matchError
+      ? "Please try again in a little while."
+      : noMatchesForDate ? "Check tomorrow or choose another date." : "Try another competition, filter, or search.";
+    elements.matchList.innerHTML = `<div class="empty-state"><strong>${title}</strong>${message}</div>`;
     return;
   }
   const groups = new Map();
@@ -1260,7 +1434,7 @@ function renderPage() {
     elements.appLayout.hidden = true;
     elements.adminPanelView.hidden = false;
     if (elements.adminPanelFrame.src === "about:blank" || !elements.adminPanelFrame.src) {
-      elements.adminPanelFrame.src = "admin.html?embedded=1";
+      elements.adminPanelFrame.src = "/admin-panel?embedded=1";
     }
     document.querySelectorAll(".primary-link").forEach((link) => {
       const selected = link === elements.adminNavLink;
@@ -1311,7 +1485,8 @@ async function loadData() {
   if (matchResult.status === "fulfilled") {
     state.matchError = "";
     const dateLabel = formatDate(parseDate(state.selectedDate), { month: "short", day: "numeric" });
-    elements.lastUpdated.textContent = `Updated ${formatDate(new Date(), { hour: "numeric", minute: "2-digit" })} · ${dateLabel}${matchResult.value ? ` · ${matchResult.value} league feeds unavailable` : ""}`;
+    const sourceLabel = state.matchSource === "backup" ? " · Backup feed" : "";
+    elements.lastUpdated.textContent = `Updated ${formatDate(new Date(), { hour: "numeric", minute: "2-digit" })} · ${dateLabel}${sourceLabel}${matchResult.value ? ` · ${matchResult.value} fixture feed requests unavailable` : ""}`;
   } else {
     state.matchError = matchResult.reason.message;
     elements.lastUpdated.textContent = `Could not load fixtures: ${matchResult.reason.message}`;

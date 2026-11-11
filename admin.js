@@ -86,11 +86,16 @@ function setSignedIn(user) {
   if (isAdmin) adminElements.signedInEmail.textContent = `Signed in as ${user.email}`;
 }
 
-function showPasswordReset() {
-  adminElements.login.hidden = true;
-  adminElements.passwordReset.hidden = false;
-  adminElements.settingsForm.hidden = true;
-  adminElements.notice.hidden = true;
+async function syncAdminGateCookie(session) {
+  const isAdmin = Boolean(session && session.access_token && session.user
+    && (session.user.email || "").toLowerCase() === adminEmail);
+  const response = await fetch("/api/admin-session", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(isAdmin ? { access_token: session.access_token } : { logout: true })
+  });
+  if (!response.ok) throw new Error("Could not verify the admin session with the server.");
 }
 
 async function loadSettings() {
@@ -383,10 +388,14 @@ adminElements.signOutButton.addEventListener("click", async () => {
     setNotice(`Could not sign out: ${error.message}`, "error");
     return;
   }
-  adminElements.dashboard.hidden = true;
-  adminElements.settingsForm.hidden = true;
-  adminElements.login.hidden = false;
-  setNotice("You have signed out.");
+  try {
+    await syncAdminGateCookie(null);
+    location.replace("/admin.html");
+  } catch (sessionError) {
+    console.error("Could not clear the admin session.", sessionError);
+    setSignedIn(null);
+    setNotice("You have signed out, but the server session could not be cleared. Close this page and try again.", "error");
+  }
 });
 
 renderLeagueOptions();
@@ -406,15 +415,30 @@ if (!validConfig()) {
     if (data.user) authorizeUser(data.user);
     else {
       setSignedIn(null);
-      adminElements.notice.hidden = true;
+      location.replace("/admin.html");
     }
   });
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (event === "PASSWORD_RECOVERY") {
-      showPasswordReset();
+      location.replace("/admin.html");
       return;
     }
-    if (session && session.user) authorizeUser(session.user);
-    else setSignedIn(null);
+    if (session && session.user) {
+      syncAdminGateCookie(session).then(() => authorizeUser(session.user)).catch((sessionError) => {
+        console.error("Could not secure the admin session.", sessionError);
+        setSignedIn(null);
+        setNotice("Could not verify the admin session with the server.", "error");
+        location.replace("/admin.html");
+      });
+    } else {
+      syncAdminGateCookie(null).then(() => {
+        setSignedIn(null);
+        location.replace("/admin.html");
+      }).catch((sessionError) => {
+        console.error("Could not clear the admin session.", sessionError);
+        setSignedIn(null);
+        location.replace("/admin.html");
+      });
+    }
   });
 }

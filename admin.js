@@ -71,6 +71,16 @@ const adminElements = {
   brandName: document.querySelector("#brand-name"),
   announcement: document.querySelector("#announcement"),
   leagueOptions: document.querySelector("#league-options"),
+  customLeagueName: document.querySelector("#custom-league-name"),
+  customLeagueCountry: document.querySelector("#custom-league-country"),
+  customLeagueBadgeFile: document.querySelector("#custom-league-badge-file"),
+  customLeagueBadgeUrl: document.querySelector("#custom-league-badge-url"),
+  customLeagueBadgePreview: document.querySelector("#custom-league-badge-preview"),
+  customLeagueBadgeStatus: document.querySelector("#custom-league-badge-status"),
+  customLeagueEspnId: document.querySelector("#custom-league-espn-id"),
+  customLeagueAddButton: document.querySelector("#custom-league-add-button"),
+  customLeaguesAdminList: document.querySelector("#custom-leagues-admin-list"),
+  customLeaguesEmpty: document.querySelector("#custom-leagues-empty"),
   signedInEmail: document.querySelector("#signed-in-email"),
   loginButton: document.querySelector("#login-button"),
   saveButton: document.querySelector("#save-button"),
@@ -146,7 +156,7 @@ async function loadSettings() {
     .forEach((input) => { input.checked = selected.has(input.value); });
   updateSettingsSummary(data);
   adminElements.notice.hidden = true;
-  await Promise.all([loadMatchDashboard(), loadVisitorStats(), loadAdverts()]);
+  await Promise.all([loadMatchDashboard(), loadVisitorStats(), loadAdverts(), fetchCustomLeagues()]);
 }
 
 function updateSettingsSummary(settings) {
@@ -648,6 +658,220 @@ function renderLeagueOptions() {
       <span>${name}</span>
     </label>
   `).join("");
+}
+
+let customLeagues = [];
+
+function loadStoredCustomLeagues() {
+  try {
+    const raw = localStorage.getItem("90minutes_custom_leagues");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistCustomLeagues(leagues) {
+  try {
+    localStorage.setItem("90minutes_custom_leagues", JSON.stringify(leagues));
+  } catch (e) {
+    console.warn("Could not save to localStorage", e);
+  }
+}
+
+async function fetchCustomLeagues() {
+  let loaded = loadStoredCustomLeagues();
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from("custom_leagues")
+        .select("*")
+        .order("created_at", { ascending: true });
+      if (!error && Array.isArray(data) && data.length) {
+        loaded = data.map((item) => ({
+          id: item.id,
+          name: item.name,
+          country: item.country || "International",
+          badge: item.badge_url || item.badge || "badges/default-crest.svg",
+          espnId: item.espn_id || item.espnId || "",
+          created_at: item.created_at
+        }));
+        persistCustomLeagues(loaded);
+      }
+    } catch (e) {
+      console.warn("Could not query custom_leagues table", e);
+    }
+  }
+  customLeagues = loaded;
+  renderCustomLeaguesList();
+}
+
+function renderCustomLeaguesList() {
+  if (!adminElements.customLeaguesAdminList) return;
+  if (!customLeagues.length) {
+    if (adminElements.customLeaguesEmpty) adminElements.customLeaguesEmpty.hidden = false;
+    adminElements.customLeaguesAdminList.innerHTML = "";
+    return;
+  }
+  if (adminElements.customLeaguesEmpty) adminElements.customLeaguesEmpty.hidden = true;
+  adminElements.customLeaguesAdminList.innerHTML = customLeagues.map((league) => `
+    <div class="custom-league-card" data-id="${league.id}">
+      <div class="custom-league-info">
+        <img src="${league.badge || 'badges/default-crest.svg'}" alt="${league.name} badge" onerror="this.onerror=null; this.src='badges/default-crest.svg';">
+        <div>
+          <div class="custom-league-name">${league.name}</div>
+          <div class="custom-league-sub">${league.country || 'International'}${league.espnId ? ` · Code: ${league.espnId}` : ''}</div>
+        </div>
+      </div>
+      <button class="custom-league-delete" type="button" data-delete-league="${league.id}">Delete</button>
+    </div>
+  `).join("");
+}
+
+if (adminElements.customLeagueBadgeFile) {
+  adminElements.customLeagueBadgeFile.addEventListener("change", () => {
+    const file = adminElements.customLeagueBadgeFile.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        adminElements.customLeagueBadgePreview.src = e.target.result;
+        adminElements.customLeagueBadgePreview.hidden = false;
+        adminElements.customLeagueBadgeStatus.textContent = file.name;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+}
+
+if (adminElements.customLeagueBadgeUrl) {
+  adminElements.customLeagueBadgeUrl.addEventListener("input", () => {
+    const url = adminElements.customLeagueBadgeUrl.value.trim();
+    if (url && /^https?:\/\//i.test(url)) {
+      adminElements.customLeagueBadgePreview.src = url;
+      adminElements.customLeagueBadgePreview.hidden = false;
+      adminElements.customLeagueBadgeStatus.textContent = "URL preview";
+    }
+  });
+}
+
+if (adminElements.customLeagueAddButton) {
+  adminElements.customLeagueAddButton.addEventListener("click", async () => {
+    const name = (adminElements.customLeagueName.value || "").trim();
+    const country = (adminElements.customLeagueCountry.value || "").trim();
+    const espnId = (adminElements.customLeagueEspnId.value || "").trim();
+    const file = adminElements.customLeagueBadgeFile && adminElements.customLeagueBadgeFile.files[0];
+    const url = (adminElements.customLeagueBadgeUrl.value || "").trim();
+
+    if (!name) {
+      setNotice("Please enter a league name.", "error");
+      adminElements.customLeagueName.focus();
+      return;
+    }
+
+    adminElements.customLeagueAddButton.disabled = true;
+    adminElements.customLeagueAddButton.textContent = "Saving league…";
+
+    try {
+      let badgeUrl = url;
+      if (file) {
+        let uploaded = false;
+        if (supabaseClient) {
+          try {
+            const ext = file.type === "image/png" ? "png" : file.type === "image/jpeg" ? "jpg" : file.type === "image/svg+xml" ? "svg" : "webp";
+            const path = `leagues/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+            const { error: uploadError } = await supabaseClient.storage.from("site-adverts").upload(path, file, {
+              cacheControl: "3600",
+              contentType: file.type,
+              upsert: true
+            });
+            if (!uploadError) {
+              const { data: pubData } = supabaseClient.storage.from("site-adverts").getPublicUrl(path);
+              if (pubData && pubData.publicUrl) {
+                badgeUrl = pubData.publicUrl;
+                uploaded = true;
+              }
+            }
+          } catch (e) {
+            console.warn("Storage upload not completed, using inline data URL", e);
+          }
+        }
+        if (!uploaded) {
+          badgeUrl = await new Promise((resolve) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result);
+            r.readAsDataURL(file);
+          });
+        }
+      }
+      if (!badgeUrl) {
+        badgeUrl = "badges/default-crest.svg";
+      }
+
+      const id = "custom-" + Date.now();
+      const newLeague = {
+        id,
+        name,
+        country: country || "International",
+        badge: badgeUrl,
+        espnId,
+        created_at: new Date().toISOString()
+      };
+
+      if (supabaseClient) {
+        try {
+          await supabaseClient.from("custom_leagues").upsert({
+            id: newLeague.id,
+            name: newLeague.name,
+            country: newLeague.country,
+            badge_url: newLeague.badge,
+            espn_id: newLeague.espnId
+          });
+        } catch (e) {
+          console.warn("Could not save to custom_leagues table", e);
+        }
+      }
+
+      customLeagues.push(newLeague);
+      persistCustomLeagues(customLeagues);
+      renderCustomLeaguesList();
+
+      adminElements.customLeagueName.value = "";
+      adminElements.customLeagueCountry.value = "";
+      adminElements.customLeagueEspnId.value = "";
+      if (adminElements.customLeagueBadgeFile) adminElements.customLeagueBadgeFile.value = "";
+      if (adminElements.customLeagueBadgeUrl) adminElements.customLeagueBadgeUrl.value = "";
+      adminElements.customLeagueBadgePreview.hidden = true;
+      adminElements.customLeagueBadgeStatus.textContent = "Choose a badge image or paste a URL to preview";
+
+      setNotice(`League "${name}" added successfully with badge! It will now appear on the sidebar.`, "success");
+    } catch (err) {
+      setNotice(`Could not add league: ${err.message}`, "error");
+    } finally {
+      adminElements.customLeagueAddButton.disabled = false;
+      adminElements.customLeagueAddButton.textContent = "+ Add league";
+    }
+  });
+}
+
+if (adminElements.customLeaguesAdminList) {
+  adminElements.customLeaguesAdminList.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-delete-league]");
+    if (!btn) return;
+    const id = btn.dataset.deleteLeague;
+    if (!confirm("Are you sure you want to remove this league?")) return;
+
+    if (supabaseClient) {
+      try {
+        await supabaseClient.from("custom_leagues").delete().eq("id", id);
+      } catch (err) {
+        console.warn("Could not delete from custom_leagues table", err);
+      }
+    }
+    customLeagues = customLeagues.filter((l) => l.id !== id);
+    persistCustomLeagues(customLeagues);
+    renderCustomLeaguesList();
+    setNotice("League removed.", "info");
+  });
 }
 
 adminElements.loginForm.addEventListener("submit", async (event) => {

@@ -217,6 +217,52 @@
           </div>
           <p class="admin-help">Choose which competitions are prioritized. All available leagues remain visible.</p>
           <div class="admin-league-grid" id="league-options"></div>
+
+          <div class="admin-custom-leagues-box">
+            <div class="admin-card-heading">
+              <div><p class="admin-card-kicker">CUSTOM LEAGUES</p><h3>Add new league</h3></div>
+            </div>
+            <p class="admin-help">Add any league or tournament from around the world. Upload a badge to display on the left sidebar.</p>
+            <div class="admin-field-row">
+              <label class="admin-field">
+                <span>League name <small>Required · e.g. Saudi Pro League, Copa Libertadores</small></span>
+                <input id="custom-league-name" type="text" placeholder="League name" maxlength="60">
+              </label>
+              <label class="admin-field">
+                <span>Country / Region <small>Optional · e.g. Saudi Arabia, Brazil, Europe</small></span>
+                <input id="custom-league-country" type="text" placeholder="Country" maxlength="60">
+              </label>
+            </div>
+            <div class="admin-field-row">
+              <label class="admin-field">
+                <span>Upload league badge <small>PNG, JPG, SVG, WebP · 5 MB max</small></span>
+                <input id="custom-league-badge-file" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif">
+              </label>
+              <label class="admin-field">
+                <span>Or badge URL <small>Optional image web link</small></span>
+                <input id="custom-league-badge-url" type="url" placeholder="https://example.com/badge.png">
+              </label>
+            </div>
+            <div class="custom-badge-preview-wrap">
+              <img id="custom-league-badge-preview" class="admin-badge-preview" alt="Badge preview" hidden>
+              <span id="custom-league-badge-status" class="admin-help">Choose a badge image or paste a URL to preview</span>
+            </div>
+            <div class="admin-field-row">
+              <label class="admin-field">
+                <span>ESPN league code / ID <small>Optional (e.g. 21231, sau.1, 85)</small></span>
+                <input id="custom-league-espn-id" type="text" placeholder="e.g. 21231">
+              </label>
+            </div>
+            <div class="admin-card-actions">
+              <button class="admin-primary-button" id="custom-league-add-button" type="button">+ Add league</button>
+            </div>
+
+            <div class="custom-leagues-container">
+              <h4 class="custom-leagues-title">Configured custom leagues</h4>
+              <p id="custom-leagues-empty" class="admin-help">No custom leagues added yet.</p>
+              <div id="custom-leagues-admin-list" class="custom-leagues-admin-list"></div>
+            </div>
+          </div>
         </section>
 
         <section class="admin-card admin-section-anchor" id="general-settings">

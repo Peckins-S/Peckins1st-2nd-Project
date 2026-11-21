@@ -1,15 +1,121 @@
 const leagues = [
-  { id: "eng.1", espnId: "700", name: "Premier League", country: "England", mark: "PL" },
-  { id: "esp.1", espnId: "740", name: "La Liga", country: "Spain", mark: "LL" },
-  { id: "ger.1", espnId: "720", name: "Bundesliga", country: "Germany", mark: "BL" },
-  { id: "ita.1", espnId: "730", name: "Serie A", country: "Italy", mark: "SA" },
-  { id: "fra.1", espnId: "710", name: "Ligue 1", country: "France", mark: "L1" }
+  { id: "eng.1", espnId: "700", name: "Premier League", country: "England", mark: "PL", badge: "badges/premier-league.png" },
+  { id: "esp.1", espnId: "740", name: "La Liga", country: "Spain", mark: "LL", badge: "badges/laliga.png" },
+  { id: "ger.1", espnId: "720", name: "Bundesliga", country: "Germany", mark: "BL", badge: "badges/bundesliga.png" },
+  { id: "ita.1", espnId: "730", name: "Serie A", country: "Italy", mark: "SA", badge: "badges/serie-a.png" },
+  { id: "fra.1", espnId: "710", name: "Ligue 1", country: "France", mark: "L1", badge: "badges/ligue-1.png" }
 ];
 const internationalCompetitions = [
-  { id: "espn-775", espnId: "775", apiSlug: "uefa.champions", name: "UEFA Champions League", country: "Europe", mark: "UCL" },
-  { id: "espn-776", espnId: "776", apiSlug: "uefa.europa", name: "UEFA Europa League", country: "Europe", mark: "UEL" },
-  { id: "espn-20296", espnId: "20296", apiSlug: "uefa.europa.conf", name: "UEFA Conference League", country: "Europe", mark: "UECL" }
+  { id: "espn-775", espnId: "775", apiSlug: "uefa.champions", name: "UEFA Champions League", country: "Europe", mark: "UCL", badge: "badges/champions-league.png" },
+  { id: "espn-776", espnId: "776", apiSlug: "uefa.europa", name: "UEFA Europa League", country: "Europe", mark: "UEL", badge: "badges/europa-league.png" },
+  { id: "espn-20296", espnId: "20296", apiSlug: "uefa.europa.conf", name: "UEFA Conference League", country: "Europe", mark: "UECL", badge: "badges/conference-league.svg" }
 ];
+const otherCompetitions = [
+  { id: "espn-715", espnId: "715", name: "Primeira Liga", country: "Portugal", mark: "POR", badge: "badges/primeira-liga.png" },
+  { id: "espn-725", espnId: "725", name: "Eredivisie", country: "Netherlands", mark: "NED", badge: "badges/eredivisie.png" },
+  { id: "espn-630", espnId: "630", name: "Brasileirão Série A", country: "Brazil", mark: "BRA", badge: "badges/brasileirao.png" },
+  { id: "espn-745", espnId: "745", name: "Primera División", country: "Argentina", mark: "ARG", badge: "badges/primera-division-arg.png" },
+  { id: "espn-770", espnId: "770", name: "Major League Soccer", country: "USA", mark: "MLS", badge: "badges/mls.png" },
+  { id: "espn-21231", espnId: "21231", name: "Saudi Pro League", country: "Saudi Arabia", mark: "SPL", badge: "badges/saudi-pro-league.svg" },
+  { id: "espn-735", espnId: "735", name: "Scottish Premiership", country: "Scotland", mark: "SPL", badge: "badges/scottish-premiership.png" },
+  { id: "espn-3946", espnId: "3946", name: "Turkish Süper Lig", country: "Türkiye", mark: "TSL", badge: "badges/super-lig.png" },
+  { id: "espn-3901", espnId: "3901", name: "Belgian Pro League", country: "Belgium", mark: "BEL", badge: "badges/belgian-pro-league.png" },
+  { id: "espn-760", espnId: "760", name: "Liga MX", country: "Mexico", mark: "MX", badge: "badges/liga-mx.png" },
+  { id: "espn-3951", espnId: "3951", name: "Copa del Rey", country: "Spain", mark: "CDR", badge: "badges/copa-del-rey.png" },
+  { id: "espn-3952", espnId: "3952", name: "Coupe de France", country: "France", mark: "CDF", badge: "badges/coupe-de-france.png" },
+  { id: "espn-3914", espnId: "3914", name: "EFL Championship", country: "England", mark: "EFL", badge: "badges/efl-championship.png" },
+  { id: "espn-18481", espnId: "18481", name: "FA Cup / EFL Trophy", country: "England", mark: "FAC", badge: "badges/fa-cup.png" },
+  { id: "espn-5454", espnId: "5454", name: "Copa Libertadores", country: "South America", mark: "CS", badge: "badges/copa-libertadores.png" }
+];
+
+const leagueBadgeMap = {
+  "eng.1": "badges/premier-league.png",
+  "700": "badges/premier-league.png",
+  "esp.1": "badges/laliga.png",
+  "740": "badges/laliga.png",
+  "ger.1": "badges/bundesliga.png",
+  "720": "badges/bundesliga.png",
+  "ita.1": "badges/serie-a.png",
+  "730": "badges/serie-a.png",
+  "fra.1": "badges/ligue-1.png",
+  "710": "badges/ligue-1.png",
+  "775": "badges/champions-league.png",
+  "espn-775": "badges/champions-league.png",
+  "776": "badges/europa-league.png",
+  "espn-776": "badges/europa-league.png",
+  "20296": "badges/conference-league.svg",
+  "espn-20296": "badges/conference-league.svg",
+  "715": "badges/primeira-liga.png",
+  "725": "badges/eredivisie.png",
+  "630": "badges/brasileirao.png",
+  "4007": "badges/brasileirao.png",
+  "745": "badges/primera-division-arg.png",
+  "3903": "badges/primera-division-arg.png",
+  "3904": "badges/primera-division-arg.png",
+  "770": "badges/mls.png",
+  "8301": "badges/mls.png",
+  "760": "badges/liga-mx.png",
+  "23541": "badges/liga-mx.png",
+  "3932": "badges/liga-mx.png",
+  "21231": "badges/saudi-pro-league.svg",
+  "735": "badges/scottish-premiership.png",
+  "3940": "badges/scottish-premiership.png",
+  "3959": "badges/scottish-premiership.png",
+  "3946": "badges/super-lig.png",
+  "3901": "badges/belgian-pro-league.png",
+  "3951": "badges/copa-del-rey.png",
+  "3952": "badges/coupe-de-france.png",
+  "17": "badges/dfb-pokal.png",
+  "3914": "badges/efl-championship.png",
+  "3915": "badges/efl-league-one.png",
+  "3916": "badges/efl-league-two.png",
+  "18481": "badges/fa-cup.png",
+  "20226": "badges/fa-cup.png",
+  "5454": "badges/copa-libertadores.png",
+  "all": "badges/all-competitions.svg"
+};
+
+function resolveLeagueBadge(league) {
+  if (!league) return "badges/default-crest.svg";
+  if (league.badge && typeof league.badge === "string" && league.badge.trim()) {
+    return league.badge.trim();
+  }
+  if (league.badge_url && typeof league.badge_url === "string" && league.badge_url.trim()) {
+    return league.badge_url.trim();
+  }
+  const id = String(league.id || "");
+  const espnId = String(league.espnId || "");
+  if (leagueBadgeMap[id]) return leagueBadgeMap[id];
+  if (leagueBadgeMap[espnId]) return leagueBadgeMap[espnId];
+
+  const name = String(league.name || "").toLowerCase();
+  if (/premier\s*league/i.test(name)) return "badges/premier-league.png";
+  if (/la\s*liga/i.test(name)) return "badges/laliga.png";
+  if (/bundesliga/i.test(name)) return "badges/bundesliga.png";
+  if (/serie\s*a/i.test(name)) return "badges/serie-a.png";
+  if (/ligue\s*1/i.test(name)) return "badges/ligue-1.png";
+  if (/champions\s*league/i.test(name)) return "badges/champions-league.png";
+  if (/europa\s*league/i.test(name)) return "badges/europa-league.png";
+  if (/conference\s*league/i.test(name)) return "badges/conference-league.svg";
+  if (/eredivisie/i.test(name)) return "badges/eredivisie.png";
+  if (/primeira\s*liga/i.test(name)) return "badges/primeira-liga.png";
+  if (/brasil|brasileir/i.test(name)) return "badges/brasileirao.png";
+  if (/argentin|primera.*divisi/i.test(name)) return "badges/primera-division-arg.png";
+  if (/major\s*league\s*soccer|\bmls\b/i.test(name)) return "badges/mls.png";
+  if (/saudi/i.test(name)) return "badges/saudi-pro-league.svg";
+  if (/scottish/i.test(name)) return "badges/scottish-premiership.png";
+  if (/super\s*lig|s\u00fcper\s*lig/i.test(name)) return "badges/super-lig.png";
+  if (/belgian|pro\s*league/i.test(name)) return "badges/belgian-pro-league.png";
+  if (/liga\s*mx/i.test(name)) return "badges/liga-mx.png";
+  if (/copa\s*del\s*rey/i.test(name)) return "badges/copa-del-rey.png";
+  if (/coupe\s*de\s*france/i.test(name)) return "badges/coupe-de-france.png";
+  if (/dfb/i.test(name)) return "badges/dfb-pokal.png";
+  if (/fa\s*cup/i.test(name)) return "badges/fa-cup.png";
+  if (/championship/i.test(name)) return "badges/efl-championship.png";
+  if (/libertadores|sudamericana/i.test(name)) return "badges/copa-libertadores.png";
+
+  return "badges/default-crest.svg";
+}
 
 const featuredLeagueChoices = [
   { id: "700", name: "Premier League" },
@@ -141,12 +247,12 @@ const competitionApiSlugRequests = new Map();
 
 const state = {
   matches: [],
-  competitions: [...leagues, ...internationalCompetitions],
+  competitions: [...leagues, ...internationalCompetitions, ...otherCompetitions],
   standings: new Map(),
   standingsErrors: new Map(),
   leagueStats: new Map(),
   selectedDate: dateKey(new Date()),
-  selectedLeague: "all",
+  selectedLeague: "eng.1",
   filter: "upcoming",
   page: "fixtures",
   favoritesOnly: false,
@@ -319,21 +425,61 @@ function renderHeaderDate() {
 
 function renderLeagueFilters() {
   const competitions = state.competitions.filter((league) => league.id !== "all");
-  document.querySelector('[data-league="all"]').classList.toggle("selected", state.selectedLeague === "all");
-  elements.leagueFilters.innerHTML = competitions.map((league) => `
-    <button class="league-filter${league.id === state.selectedLeague ? " selected" : ""}" type="button" data-league="${escapeHtml(league.id)}">
-      <span class="side-icon">${escapeHtml(league.mark)}</span>${escapeHtml(league.name)}
-    </button>
-  `).join("");
+  const allButton = document.querySelector('[data-league="all"]');
+  if (allButton) {
+    allButton.classList.toggle("selected", state.selectedLeague === "all");
+  }
+
+  const topLeaguesSet = new Set(["eng.1", "esp.1", "ger.1", "ita.1", "fra.1", "espn-775", "espn-776", "espn-20296", "700", "740", "720", "730", "710", "775", "776", "20296"]);
+  const topLeagues = competitions.filter((l) => topLeaguesSet.has(l.id) || topLeaguesSet.has(l.espnId));
+  const moreLeagues = competitions.filter((l) => !topLeaguesSet.has(l.id) && !topLeaguesSet.has(l.espnId));
+
+  function renderLeagueItem(league) {
+    const isSelected = league.id === state.selectedLeague || (state.selectedLeague === "eng.1" && (league.id === "eng.1" || league.espnId === "700"));
+    const badge = resolveLeagueBadge(league);
+    const country = league.country || "League";
+    return `
+      <button class="league-filter${isSelected ? " selected" : ""}" type="button" data-league="${escapeHtml(league.id)}" title="${escapeHtml(league.name)} (${escapeHtml(country)})">
+        <img class="league-badge" src="${escapeHtml(badge)}" alt="${escapeHtml(league.name)} badge" loading="lazy" onerror="this.onerror=null; this.src='badges/default-crest.svg';">
+        <span class="league-text">
+          <span class="league-name">${escapeHtml(league.name)}</span>
+          <span class="league-country">${escapeHtml(country)}</span>
+        </span>
+      </button>
+    `;
+  }
+
+  let html = `<div class="sidebar-section-title">TOP LEAGUES</div>`;
+  html += topLeagues.map(renderLeagueItem).join("");
+
+  if (moreLeagues.length) {
+    html += `<div class="sidebar-section-title">MORE LEAGUES</div>`;
+    html += moreLeagues.map(renderLeagueItem).join("");
+  }
+
+  elements.leagueFilters.innerHTML = html;
 }
 
 function compareCompetitions(a, b) {
-  const aFeatured = featuredCompetitionIds.has(String(a.espnId || ""));
-  const bFeatured = featuredCompetitionIds.has(String(b.espnId || ""));
-  if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;
+  const isAPremier = a.id === "eng.1" || a.espnId === "700" || /premier\s*league/i.test(a.name || "");
+  const isBPremier = b.id === "eng.1" || b.espnId === "700" || /premier\s*league/i.test(b.name || "");
+  if (isAPremier !== isBPremier) return isAPremier ? -1 : 1;
+
+  if (a.isCustom && !b.isCustom) return -1;
+  if (!a.isCustom && b.isCustom) return 1;
+
+  const topOrder = ["eng.1", "esp.1", "ger.1", "ita.1", "fra.1", "espn-775", "espn-776", "espn-20296", "700", "740", "720", "730", "710", "775", "776", "20296"];
+  const aTopIndex = topOrder.indexOf(a.id) !== -1 ? topOrder.indexOf(a.id) : topOrder.indexOf(a.espnId);
+  const bTopIndex = topOrder.indexOf(b.id) !== -1 ? topOrder.indexOf(b.id) : topOrder.indexOf(b.espnId);
+  if (aTopIndex !== -1 && bTopIndex !== -1) return aTopIndex - bTopIndex;
+  if (aTopIndex !== -1) return -1;
+  if (bTopIndex !== -1) return 1;
+
   const aRank = competitionRanks.get(String(a.espnId || "")) ?? Number.MAX_SAFE_INTEGER;
   const bRank = competitionRanks.get(String(b.espnId || "")) ?? Number.MAX_SAFE_INTEGER;
-  return aRank - bRank || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+  if (aRank !== bRank) return aRank - bRank;
+
+  return (a.country || "").localeCompare(b.country || "") || (a.name || "").localeCompare(b.name || "");
 }
 
 function renderDateStrip() {
@@ -833,6 +979,69 @@ async function loadPublicSiteSettings() {
   }
 }
 
+async function loadCustomLeagues(initialList) {
+  let list = Array.isArray(initialList) ? initialList : [];
+  if (!list.length) {
+    try {
+      const raw = localStorage.getItem("90minutes_custom_leagues");
+      if (raw) list = JSON.parse(raw);
+    } catch {}
+  }
+
+  const config = getSupabaseConfig();
+  if (config) {
+    try {
+      const baseUrl = config.url.replace(/\/+$/, "");
+      const response = await fetch(`${baseUrl}/rest/v1/custom_leagues?select=*`, {
+        headers: {
+          apikey: config.anonKey,
+          Authorization: `Bearer ${config.anonKey}`
+        }
+      });
+      if (response.ok) {
+        const rows = await response.json();
+        if (Array.isArray(rows) && rows.length) {
+          list = rows.map((item) => ({
+            id: item.id,
+            name: item.name,
+            country: item.country || "International",
+            badge: item.badge_url || item.badge || "badges/default-crest.svg",
+            espnId: item.espn_id || item.espnId || "",
+            isCustom: true
+          }));
+          try {
+            localStorage.setItem("90minutes_custom_leagues", JSON.stringify(list));
+          } catch {}
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load custom leagues from Supabase API", e);
+    }
+  }
+
+  if (Array.isArray(list) && list.length) {
+    for (const cl of list) {
+      if (!cl || !cl.name) continue;
+      const leagueObj = {
+        id: cl.id || `custom-${cl.name.toLowerCase().replace(/\s+/g, "-")}`,
+        espnId: cl.espnId || cl.espn_id || "",
+        name: cl.name,
+        country: cl.country || "Custom",
+        badge: cl.badge || cl.badge_url || "badges/default-crest.svg",
+        isCustom: true
+      };
+      const existingIdx = state.competitions.findIndex((c) => c.id === leagueObj.id);
+      if (existingIdx !== -1) {
+        state.competitions[existingIdx] = leagueObj;
+      } else {
+        state.competitions.push(leagueObj);
+      }
+    }
+    state.competitions.sort(compareCompetitions);
+    renderLeagueFilters();
+  }
+}
+
 async function fetchMatches() {
   const selectedDate = parseDate(state.selectedDate);
   const selectedDateKey = state.selectedDate;
@@ -872,20 +1081,26 @@ async function fetchMatches() {
 }
 
 function updateCompetitionsFromMatches() {
-  const competitionMap = new Map([...leagues, ...internationalCompetitions, ...state.matches.map((match) => match.league)]
-    .map((league) => [league.id, league]));
+  const allKnown = [...leagues, ...internationalCompetitions, ...otherCompetitions, ...state.competitions, ...state.matches.map((match) => match.league)];
+  const competitionMap = new Map(allKnown.map((league) => [league.id, league]));
   state.competitions = [...competitionMap.values()].sort(compareCompetitions);
+  const isSelectedPremier = state.selectedLeague === "eng.1" || state.selectedLeague === "700";
   if (state.selectedLeague !== "all"
+    && !isSelectedPremier
     && !state.competitions.some((league) => league.id === state.selectedLeague)) {
-    state.selectedLeague = "all";
+    state.selectedLeague = "eng.1";
   }
   renderLeagueFilters();
 }
 
 function selectedCompetitions() {
-  return state.selectedLeague === "all"
-    ? leagues
-    : [state.competitions.find((league) => league.id === state.selectedLeague)].filter(Boolean);
+  if (state.selectedLeague === "all") return leagues;
+  const isSelectedPremier = state.selectedLeague === "eng.1" || state.selectedLeague === "700";
+  if (isSelectedPremier) {
+    const pl = state.competitions.find((league) => league.id === "eng.1" || league.espnId === "700" || /premier\s*league/i.test(league.name || ""));
+    if (pl) return [pl];
+  }
+  return [state.competitions.find((league) => league.id === state.selectedLeague || league.espnId === state.selectedLeague)].filter(Boolean);
 }
 
 function flattenStandings(node) {
@@ -1423,7 +1638,19 @@ function renderMatchDetails() {
 function getFilteredMatches() {
   const query = elements.searchInput.value.trim().toLocaleLowerCase();
   return state.matches.filter((match) => {
-    if (state.selectedLeague !== "all" && match.league.id !== state.selectedLeague) return false;
+    if (state.selectedLeague !== "all") {
+      const matchLeagueId = match.league && match.league.id;
+      const matchEspnId = match.league && match.league.espnId;
+      const matchName = match.league && match.league.name;
+      const isSelectedPremier = state.selectedLeague === "eng.1" || state.selectedLeague === "700";
+      const isMatchPremier = matchLeagueId === "eng.1" || matchEspnId === "700" || /premier\s*league/i.test(matchName || "");
+
+      if (isSelectedPremier) {
+        if (!isMatchPremier) return false;
+      } else if (matchLeagueId !== state.selectedLeague && matchEspnId !== state.selectedLeague) {
+        return false;
+      }
+    }
     if (state.filter === "live" && match.state !== "in") return false;
     if (state.filter === "upcoming" && match.state !== "pre") return false;
     if (state.filter === "finished" && match.state !== "post") return false;
@@ -1718,13 +1945,23 @@ document.querySelector(".primary-nav").addEventListener("click", (event) => {
   selectPage(page);
 });
 
-document.querySelector(".brand").addEventListener("click", (event) => {
-  event.preventDefault();
+function selectStartPremierLeague(event) {
+  if (event) event.preventDefault();
   state.detailMatchId = null;
   state.detailRequest += 1;
+  state.selectedLeague = "eng.1";
+  state.filter = "upcoming";
   history.replaceState(null, "", "#fixtures");
   selectPage("fixtures");
-});
+  renderLeagueFilters();
+  renderPage();
+}
+
+document.querySelector(".brand").addEventListener("click", selectStartPremierLeague);
+const startNavLink = document.querySelector("#start-nav-link");
+if (startNavLink) {
+  startNavLink.addEventListener("click", selectStartPremierLeague);
+}
 
 document.querySelector("#competitions").addEventListener("click", (event) => {
   const button = event.target.closest("[data-league]");
@@ -1846,6 +2083,14 @@ if (initialPage !== "admin") {
 }
 loadPublicSiteSettings().catch((error) => {
   console.error("Could not load public site settings.", error);
+});
+loadCustomLeagues().catch((error) => {
+  console.error("Could not load custom leagues.", error);
+});
+window.addEventListener("storage", (event) => {
+  if (event.key === "90minutes_custom_leagues") {
+    loadCustomLeagues().catch(() => {});
+  }
 });
 loadPublicAdverts().catch((error) => {
   console.error("Could not load published adverts.", error);

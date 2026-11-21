@@ -198,3 +198,35 @@ $$;
 
 revoke all on function public.record_site_visit(uuid) from public;
 grant execute on function public.record_site_visit(uuid) to anon, authenticated;
+
+-- Custom leagues table
+create table if not exists public.custom_leagues (
+  id text primary key,
+  name text not null check (char_length(name) between 1 and 60),
+  country text not null default '' check (char_length(country) <= 60),
+  badge_url text not null default '',
+  espn_id text not null default '',
+  display_order integer not null default 100,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.custom_leagues enable row level security;
+revoke all on public.custom_leagues from anon, authenticated;
+grant select on public.custom_leagues to anon, authenticated;
+grant insert, update, delete on public.custom_leagues to authenticated;
+
+drop policy if exists "Public can read custom leagues" on public.custom_leagues;
+create policy "Public can read custom leagues"
+  on public.custom_leagues
+  for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "Only the site admin can manage custom leagues" on public.custom_leagues;
+create policy "Only the site admin can manage custom leagues"
+  on public.custom_leagues
+  for all
+  to authenticated
+  using ((auth.jwt() ->> 'email') = 'peckinssmart@gmail.com')
+  with check ((auth.jwt() ->> 'email') = 'peckinssmart@gmail.com');

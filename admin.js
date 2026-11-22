@@ -28,6 +28,7 @@ const adminElements = {
   notice: document.querySelector("#admin-notice"),
   login: document.querySelector("#admin-login"),
   loginForm: document.querySelector("#login-form"),
+  email: document.querySelector("#login-email"),
   password: document.querySelector("#login-password"),
   passwordReset: document.querySelector("#password-reset"),
   passwordResetForm: document.querySelector("#password-reset-form"),
@@ -312,10 +313,10 @@ async function loadVisitorStats() {
 }
 
 async function authorizeUser(user) {
-  if (!user || (user.email || "").toLowerCase() !== adminEmail) {
+  if (!user || !user.email) {
     setSignedIn(null);
     await supabaseClient.auth.signOut();
-    setNotice(`This panel is restricted to ${adminEmail}.`, "error");
+    setNotice("Sign-in failed. Please try again.", "error");
     return;
   }
   setSignedIn(user);
@@ -1176,10 +1177,15 @@ if (adminElements.customLeaguesAdminList) {
 adminElements.loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!supabaseClient) return;
+  const email = adminElements.email ? adminElements.email.value.trim() : "";
+  if (!email) {
+    setNotice("Please enter your admin email.", "error");
+    return;
+  }
   adminElements.loginButton.disabled = true;
   setNotice("Signing in…");
   const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email: adminEmail,
+    email,
     password: adminElements.password.value
   });
   adminElements.password.value = "";

@@ -3,7 +3,7 @@ const path = require("node:path");
 
 const SUPABASE_URL = "https://epmrvuucjlebneyheelx.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_ONc2GDqSz_APsVSfDkjh8g_nWmpC41a";
-const ADMIN_EMAIL = "peckinssmart@gmail.com";
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "").toLowerCase();
 const COOKIE_NAME = "__Host-90m-admin";
 
 async function isAuthorized(accessToken) {
@@ -16,7 +16,11 @@ async function isAuthorized(accessToken) {
   });
   if (!response.ok) return false;
   const user = await response.json();
-  return (user.email || "").toLowerCase() === ADMIN_EMAIL;
+  if (!user || !user.email) return false;
+  if (ADMIN_EMAIL && (user.email || "").toLowerCase() !== ADMIN_EMAIL) {
+    return false;
+  }
+  return true;
 }
 
 function readCookie(header, name) {

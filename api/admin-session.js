@@ -1,6 +1,6 @@
 const SUPABASE_URL = "https://epmrvuucjlebneyheelx.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_ONc2GDqSz_APsVSfDkjh8g_nWmpC41a";
-const ADMIN_EMAIL = "peckinssmart@gmail.com";
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "").toLowerCase();
 const COOKIE_NAME = "__Host-90m-admin";
 
 async function getAdminUser(accessToken) {
@@ -12,7 +12,11 @@ async function getAdminUser(accessToken) {
   });
   if (!response.ok) return null;
   const user = await response.json();
-  return (user.email || "").toLowerCase() === ADMIN_EMAIL ? user : null;
+  if (!user || !user.email) return null;
+  if (ADMIN_EMAIL && (user.email || "").toLowerCase() !== ADMIN_EMAIL) {
+    return null;
+  }
+  return user;
 }
 
 function readBody(req) {

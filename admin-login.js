@@ -1,6 +1,6 @@
 const adminConfig = window.SUPABASE_CONFIG;
-const adminEmail = (adminConfig && adminConfig.adminEmail) || "peckinssmart@gmail.com";
 const loginForm = document.querySelector("#login-form");
+const loginEmail = document.querySelector("#login-email");
 const loginPassword = document.querySelector("#login-password");
 const loginButton = document.querySelector("#login-button");
 const loginSection = document.querySelector("#admin-login");
@@ -13,6 +13,11 @@ const confirmPassword = document.querySelector("#confirm-password");
 const notice = document.querySelector("#login-notice");
 let panelNavigationStarted = false;
 let passwordRecoveryActive = new URLSearchParams(location.hash.slice(1)).get("type") === "recovery";
+
+if (loginEmail) {
+  const savedEmail = localStorage.getItem("90plus_admin_email");
+  if (savedEmail) loginEmail.value = savedEmail;
+}
 
 function showNotice(message, type = "info") {
   notice.textContent = message;
@@ -31,16 +36,9 @@ async function establishAdminSession(session) {
 }
 
 function openAdminPanel(session, client) {
-  if (!session || !session.user) {
-    showNotice("This panel is restricted to the authorized admin account.", "error");
+  if (!session || !session.user || !session.user.email) {
+    showNotice("Sign-in failed: No user session found.", "error");
     return Promise.resolve();
-  }
-  if ((session.user.email || "").toLowerCase() !== adminEmail.toLowerCase()) {
-    return client.auth.signOut().then(clearAdminCookie).then(() => {
-      showNotice("This panel is restricted to the authorized admin account.", "error");
-    }).catch((error) => {
-      showNotice(`Could not clear the unauthorized session: ${error.message}`, "error");
-    });
   }
   if (panelNavigationStarted) return Promise.resolve();
   panelNavigationStarted = true;
@@ -64,7 +62,7 @@ async function clearAdminCookie() {
   if (!response.ok) throw new Error("Could not clear the server admin session.");
 }
 
-if (!adminConfig || !adminEmail || !window.supabase || typeof window.supabase.createClient !== "function") {
+if (!adminConfig || !window.supabase || typeof window.supabase.createClient !== "function") {
   showNotice("Admin sign-in is unavailable. Check your connection and try again.", "error");
 } else {
   const client = window.supabase.createClient(adminConfig.url, adminConfig.anonKey);
@@ -80,7 +78,7 @@ if (!adminConfig || !adminEmail || !window.supabase || typeof window.supabase.cr
         resetSection.hidden = false;
         return;
       }
-      if ((data.session.user.email || "").toLowerCase() === adminEmail.toLowerCase()) {
+      if (data.session.user && data.session.user.email) {
         return openAdminPanel(data.session, client);
       }
       return client.auth.signOut().then(clearAdminCookie).then(() => {
@@ -114,10 +112,15 @@ if (!adminConfig || !adminEmail || !window.supabase || typeof window.supabase.cr
 
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const email = loginEmail ? loginEmail.value.trim() : "";
+    if (!email) {
+      showNotice("Please enter your admin email.", "error");
+      return;
+    }
     loginButton.disabled = true;
     showNotice("Signing in…");
     const { data, error } = await client.auth.signInWithPassword({
-      email: adminEmail,
+      email,
       password: loginPassword.value
     });
     loginPassword.value = "";
@@ -126,18 +129,24 @@ if (!adminConfig || !adminEmail || !window.supabase || typeof window.supabase.cr
       showNotice(`Sign-in failed: ${error.message}`, "error");
       return;
     }
+    localStorage.setItem("90plus_admin_email", email);
     await openAdminPanel(data.session, client);
   });
 
   resetRequest.addEventListener("click", async () => {
+    const email = loginEmail ? loginEmail.value.trim() : "";
+    if (!email) {
+      showNotice("Please enter your email above to receive a password reset link.", "error");
+      return;
+    }
     resetRequest.disabled = true;
-    const { error } = await client.auth.resetPasswordForEmail(adminEmail, {
+    const { error } = await client.auth.resetPasswordForEmail(email, {
       redirectTo: `${location.origin}/admin.html`
     });
     resetRequest.disabled = false;
     showNotice(error
       ? `Could not send a reset email: ${error.message}`
-      : "If an account exists, a password reset email has been sent.", error ? "error" : "info");
+      : `If an account exists for ${email}, a password reset email has been sent.`, error ? "error" : "info");
   });
 
   resetForm.addEventListener("submit", async (event) => {

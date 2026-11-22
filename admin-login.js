@@ -1,5 +1,5 @@
 const adminConfig = window.SUPABASE_CONFIG;
-const adminEmail = adminConfig && adminConfig.adminEmail;
+const adminEmail = (adminConfig && adminConfig.adminEmail) || "peckinssmart@gmail.com";
 const loginForm = document.querySelector("#login-form");
 const loginPassword = document.querySelector("#login-password");
 const loginButton = document.querySelector("#login-button");

@@ -266,6 +266,10 @@ const state = {
   detailRequest: 0,
   matchError: "",
   matchSource: "",
+  spoilerShield: false,
+  revealedMatchIds: new Set(),
+  liveTableOpen: false,
+  activeCalendarMatch: null,
   playerDialog: document.querySelector("#player-dialog"),
   playerDialogBody: document.querySelector("#player-dialog-body")
 };
@@ -282,6 +286,18 @@ const elements = {
   refreshButton: document.querySelector("#refresh-button"),
   searchInput: document.querySelector("#search-input"),
   favoritesToggle: document.querySelector("#favorites-toggle"),
+  spoilerToggle: document.querySelector("#spoiler-toggle"),
+  liveTableToggle: document.querySelector("#live-table-toggle"),
+  liveStandingsDrawer: document.querySelector("#live-standings-drawer"),
+  liveStandingsLeagueName: document.querySelector("#live-standings-league-name"),
+  liveStandingsBody: document.querySelector("#live-standings-body"),
+  liveStandingsClose: document.querySelector("#live-standings-close"),
+  calendarDialog: document.querySelector("#calendar-dialog"),
+  calendarDialogClose: document.querySelector("#calendar-dialog-close"),
+  calendarDialogMatch: document.querySelector("#calendar-dialog-match"),
+  calendarDialogTime: document.querySelector("#calendar-dialog-time"),
+  calendarGoogleLink: document.querySelector("#calendar-google-link"),
+  calendarIcsBtn: document.querySelector("#calendar-ics-btn"),
   matchView: document.querySelector("#match-view"),
   standingsView: document.querySelector("#standings-view"),
   standingsTitle: document.querySelector("#standings-title"),
@@ -488,6 +504,12 @@ function mapEvent(event, league) {
   const home = competitors.find((team) => team.homeAway === "home") || competitors[0] || {};
   const away = competitors.find((team) => team.homeAway === "away") || competitors[1] || {};
   const status = (event.status && event.status.type) || {};
+  const rawBroadcasts = (competition && competition.broadcasts) || event.broadcasts || [];
+  const broadcasts = Array.isArray(rawBroadcasts)
+    ? rawBroadcasts.flatMap((b) => b.names || (b.name ? [b.name] : [])).filter(Boolean)
+    : [];
+  const clock = (event.status && (event.status.displayClock || event.status.clock)) || "";
+  const period = event.status && event.status.period;
   return {
     id: String(event.id),
     league,
@@ -498,6 +520,9 @@ function mapEvent(event, league) {
     date: event.date,
     state: status.state || "pre",
     status: status.shortDetail || status.detail || "",
+    clock: String(clock),
+    period,
+    broadcasts: Array.from(new Set(broadcasts)),
     note: competition && competition.notes && competition.notes[0]
       ? competition.notes[0].headline : ""
   };
@@ -1556,6 +1581,13 @@ function renderMatchDetails() {
         : state.detailTab === "lineups" ? renderLineups(summary, match)
           : state.detailTab === "stats" ? renderStatistics(summary, match)
             : renderRelatedMatchMedia(summary, match);
+  const broadcastHero = match.broadcasts && match.broadcasts.length
+    ? `<div class="broadcast-container-hero"><span class="broadcast-label-hero">📺 Where to watch:</span>${match.broadcasts.map((b) => `<span class="broadcast-badge-hero">${escapeHtml(b)}</span>`).join("")}</div>`
+    : "";
+  const calendarHero = match.state === "pre"
+    ? `<button class="tool-btn" data-cal-id="${escapeHtml(match.id)}" type="button" style="margin-top:10px;">📅 Add Fixture to Calendar</button>`
+    : "";
+
   elements.detailContent.innerHTML = `
     <header class="match-hero">
       <p>${escapeHtml(match.league.name)} · ${escapeHtml(match.league.country)}</p>
@@ -1565,12 +1597,53 @@ function renderMatchDetails() {
         <div>${clubBadge(match.away, "club-badge--hero")}<strong>${escapeHtml(match.away.displayName || match.away.name)}</strong></div>
       </div>
       <span class="match-hero-status${match.state === "in" ? " live" : ""}">${escapeHtml(status)}</span>
+      ${broadcastHero}
+      ${calendarHero}
     </header>
     <nav class="detail-tabs" role="tablist" aria-label="Match details">
       ${tabs.map((tab) => `<button type="button" role="tab" data-detail-tab="${tab}" aria-selected="${state.detailTab === tab}" class="${state.detailTab === tab ? "active" : ""}">${tab === "stats" ? "Stats" : tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}
     </nav>
     <div class="detail-panel">${panel}</div>
   `;
+}
+
+function isLiveDrama(match) {
+  if (match.state !== "in") return false;
+  const home = Number(match.homeScore ?? 0);
+  const away = Number(match.awayScore ?? 0);
+  const diff = Math.abs(home - away);
+  const statusText = (match.status || "").toLowerCase();
+  const clockText = (match.clock || "").toLowerCase();
+  const isLate = /90\+|45\+|8[5-9]|9\d/.test(statusText) || /90\+|8[5-9]|9\d/.test(clockText);
+  return isLate && diff <= 1;
+}
+
+function isDramaMatch(match) {
+  if (isLiveDrama(match)) return true;
+  if (match.state === "post") {
+    const home = Number(match.homeScore ?? 0);
+    const away = Number(match.awayScore ?? 0);
+    const diff = Math.abs(home - away);
+    return diff <= 1 && (home + away) >= 2;
+  }
+  return false;
+}
+
+function getThrillerRating(match) {
+  const home = Number(match.homeScore ?? 0);
+  const away = Number(match.awayScore ?? 0);
+  const total = home + away;
+  const diff = Math.abs(home - away);
+  if (total >= 4 || (total >= 3 && diff <= 1)) {
+    return { label: "🔥 Classic", className: "thriller--classic" };
+  }
+  if (total >= 2 && diff <= 1) {
+    return { label: "⚡ Thriller", className: "thriller--good" };
+  }
+  if (total === 1 || (total === 2 && diff === 0)) {
+    return { label: "🍿 Tense", className: "thriller--tense" };
+  }
+  return { label: "💤 Quiet", className: "thriller--quiet" };
 }
 
 function getFilteredMatches() {
@@ -1589,9 +1662,13 @@ function getFilteredMatches() {
         return false;
       }
     }
-    if (state.filter === "live" && match.state !== "in") return false;
-    if (state.filter === "upcoming" && match.state !== "pre") return false;
-    if (state.filter === "finished" && match.state !== "post") return false;
+    if (state.filter === "drama") {
+      if (!isDramaMatch(match)) return false;
+    } else {
+      if (state.filter === "live" && match.state !== "in") return false;
+      if (state.filter === "upcoming" && match.state !== "pre") return false;
+      if (state.filter === "finished" && match.state !== "post") return false;
+    }
     if (state.favoritesOnly && !state.favoriteIds.has(match.id)) return false;
     const haystack = `${match.home.displayName || ""} ${match.away.displayName || ""} ${match.league.name}`.toLocaleLowerCase();
     return !query || haystack.includes(query);
@@ -1617,10 +1694,32 @@ function renderMatch(match) {
   const status = matchStatus(match);
   const favorite = state.favoriteIds.has(match.id);
   const showScores = match.state !== "pre";
+  const liveDrama = isLiveDrama(match);
+  const hasBroadcast = match.broadcasts && match.broadcasts.length > 0;
+  const isPre = match.state === "pre";
+  const isRevealed = state.revealedMatchIds.has(match.id);
+  const isMasked = state.spoilerShield && showScores && !isRevealed;
+
+  let scoreHtml;
+  if (!showScores) {
+    scoreHtml = "–<br>–";
+  } else if (isMasked) {
+    if (match.state === "post") {
+      const thriller = getThrillerRating(match);
+      scoreHtml = `<div class="spoiler-hidden-box" data-reveal-score="${escapeHtml(match.id)}" title="Click to reveal score"><span>🙈 Show</span><span class="thriller-pill ${thriller.className}">${thriller.label}</span></div>`;
+    } else {
+      scoreHtml = `<div class="spoiler-hidden-box" data-reveal-score="${escapeHtml(match.id)}" title="Click to reveal score"><span>🙈 LIVE</span><small style="font-size:8px;">reveal</small></div>`;
+    }
+  } else {
+    scoreHtml = `${escapeHtml(match.homeScore ?? "0")}<br>${escapeHtml(match.awayScore ?? "0")}`;
+  }
+
   return `
-    <article class="match-row">
+    <article class="match-row" data-match-id="${escapeHtml(match.id)}">
       <div class="match-state">
         <span class="match-status ${status.className}">${escapeHtml(status.main)}</span>
+        ${liveDrama ? `<span class="drama-pulse-badge">⚡ 90+ DRAMA</span>` : ""}
+        ${hasBroadcast ? `<span class="broadcast-pill" title="Watch on ${escapeHtml(match.broadcasts.join(', '))}">📺 ${escapeHtml(match.broadcasts[0])}</span>` : ""}
         ${status.note ? `<span class="match-note">${escapeHtml(status.note)}</span>` : ""}
         ${match.provider === "openligadb" ? "" : `<button class="match-detail-link" type="button" data-match-detail="${escapeHtml(match.id)}">Match details</button>`}
       </div>
@@ -1628,8 +1727,11 @@ function renderMatch(match) {
         <div class="team">${clubBadge(match.home, "club-badge--fixture")}<span class="team-name">${escapeHtml(match.home.displayName || match.home.name || "Home")}</span></div>
         <div class="team">${clubBadge(match.away, "club-badge--fixture")}<span class="team-name">${escapeHtml(match.away.displayName || match.away.name || "Away")}</span></div>
       </div>
-      <div class="scores${showScores ? " has-score" : ""}">${showScores ? `${escapeHtml(match.homeScore ?? "0")}<br>${escapeHtml(match.awayScore ?? "0")}` : "–<br>–"}</div>
-      <button class="favorite-button${favorite ? " selected" : ""}" type="button" data-favorite="${escapeHtml(match.id)}" aria-label="${favorite ? "Remove favorite" : "Add favorite"}" aria-pressed="${favorite}">${favorite ? "★" : "☆"}</button>
+      <div class="scores${showScores ? " has-score" : ""}${isMasked ? " spoiler-masked" : ""}">${scoreHtml}</div>
+      <div class="match-row-actions">
+        ${isPre ? `<button class="cal-sync-button" type="button" data-cal-id="${escapeHtml(match.id)}" title="Add to Google or Apple Calendar">📅</button>` : ""}
+        <button class="favorite-button${favorite ? " selected" : ""}" type="button" data-favorite="${escapeHtml(match.id)}" aria-label="${favorite ? "Remove favorite" : "Add favorite"}" aria-pressed="${favorite}">${favorite ? "★" : "☆"}</button>
+      </div>
     </article>
   `;
 }
@@ -1672,6 +1774,203 @@ function renderMatches() {
       ${leagueMatches.map(renderMatch).join("")}
     </section>`;
   }).join("");
+  if (state.liveTableOpen) renderLiveStandings();
+}
+
+function getActiveTableLeague() {
+  if (state.selectedLeague && state.selectedLeague !== "all") {
+    const found = state.competitions.find((c) => c.id === state.selectedLeague || c.espnId === state.selectedLeague);
+    if (found) return found;
+  }
+  return state.competitions.find((c) => c.id === "eng.1") || leagues[0];
+}
+
+async function renderLiveStandings() {
+  if (!elements.liveStandingsDrawer) return;
+  const league = getActiveTableLeague();
+  if (elements.liveStandingsLeagueName) {
+    elements.liveStandingsLeagueName.textContent = `(${league.name})`;
+  }
+
+  if (!state.standings.has(league.id)) {
+    elements.liveStandingsBody.innerHTML = `<div class="loading-state" role="status"><span class="loading-spinner" aria-hidden="true"></span><span>Simulating live table…</span></div>`;
+    try {
+      await fetchStandingsForLeague(league);
+    } catch {
+      elements.liveStandingsBody.innerHTML = `<p style="color:var(--muted); font-size:12px;">Live standings unavailable for ${escapeHtml(league.name)}.</p>`;
+      return;
+    }
+  }
+
+  const baseRows = state.standings.get(league.id) || [];
+  if (!baseRows.length) {
+    elements.liveStandingsBody.innerHTML = `<p style="color:var(--muted); font-size:12px;">No standings data available for this competition.</p>`;
+    return;
+  }
+
+  const simulated = baseRows.map((row, idx) => ({
+    ...row,
+    baseRank: idx + 1,
+    simRank: idx + 1,
+    simPoints: Number(row.points || 0),
+    simGD: Number(row.goalDifference || 0),
+    simPlayed: Number(row.played || 0)
+  }));
+
+  const liveMatches = state.matches.filter((m) => {
+    const mLeagueId = m.league && m.league.id;
+    const mEspnId = m.league && m.league.espnId;
+    return (mLeagueId === league.id || mEspnId === league.id || mEspnId === league.espnId) && m.state === "in";
+  });
+
+  for (const m of liveMatches) {
+    const homeName = (m.home.displayName || m.home.name || "").toLowerCase();
+    const awayName = (m.away.displayName || m.away.name || "").toLowerCase();
+    const homeRow = simulated.find((r) => (r.team || "").toLowerCase().includes(homeName) || homeName.includes((r.team || "").toLowerCase()));
+    const awayRow = simulated.find((r) => (r.team || "").toLowerCase().includes(awayName) || awayName.includes((r.team || "").toLowerCase()));
+    const hScore = Number(m.homeScore ?? 0);
+    const aScore = Number(m.awayScore ?? 0);
+
+    if (homeRow) {
+      homeRow.simPlayed += 1;
+      homeRow.simGD += (hScore - aScore);
+      if (hScore > aScore) homeRow.simPoints += 3;
+      else if (hScore === aScore) homeRow.simPoints += 1;
+    }
+    if (awayRow) {
+      awayRow.simPlayed += 1;
+      awayRow.simGD += (aScore - hScore);
+      if (aScore > hScore) awayRow.simPoints += 3;
+      else if (hScore === aScore) awayRow.simPoints += 1;
+    }
+  }
+
+  simulated.sort((a, b) => {
+    if (b.simPoints !== a.simPoints) return b.simPoints - a.simPoints;
+    return b.simGD - a.simGD;
+  });
+
+  simulated.forEach((t, idx) => {
+    t.simRank = idx + 1;
+  });
+
+  elements.liveStandingsBody.innerHTML = `
+    <div class="table-scroll">
+      <table class="standings-table">
+        <thead>
+          <tr>
+            <th>Live</th>
+            <th>Shift</th>
+            <th>Team</th>
+            <th>P</th>
+            <th>GD</th>
+            <th>Pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${simulated.slice(0, 10).map((t) => {
+            let shiftHtml;
+            if (t.simRank < t.baseRank) {
+              shiftHtml = `<span class="live-rank-up">▲ ${t.baseRank - t.simRank}</span>`;
+            } else if (t.simRank > t.baseRank) {
+              shiftHtml = `<span class="live-rank-down">▼ ${t.simRank - t.baseRank}</span>`;
+            } else {
+              shiftHtml = `<span class="live-rank-same">—</span>`;
+            }
+            return `
+              <tr>
+                <td><strong>${t.simRank}</strong></td>
+                <td>${shiftHtml}</td>
+                <td><span class="table-club">${clubBadge(t, "club-badge--table")}<span>${escapeHtml(t.team)}</span></span></td>
+                <td>${t.simPlayed}</td>
+                <td>${t.simGD >= 0 ? `+${t.simGD}` : t.simGD}</td>
+                <td><strong>${t.simPoints}</strong></td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+    ${liveMatches.length ? `<p style="margin: 8px 0 0; color: #a4f59e; font-size: 11px;">⚡ Table updated in real-time with ${liveMatches.length} live match${liveMatches.length === 1 ? "" : "es"} in progress.</p>` : `<p style="margin: 8px 0 0; color: var(--muted); font-size: 11px;">No live games in progress right now. Showing base table standings.</p>`}
+  `;
+}
+
+function openCalendarModal(match) {
+  if (!match || !elements.calendarDialog) return;
+  state.activeCalendarMatch = match;
+  const home = match.home.displayName || match.home.name || "Home";
+  const away = match.away.displayName || match.away.name || "Away";
+  const leagueName = match.league ? match.league.name : "Football";
+  const title = `${home} vs ${away} — ${leagueName}`;
+  const matchDate = new Date(match.date);
+  const formattedTime = formatDate(matchDate, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+
+  if (elements.calendarDialogMatch) elements.calendarDialogMatch.textContent = `${home} vs ${away}`;
+  if (elements.calendarDialogTime) elements.calendarDialogTime.textContent = `${leagueName} · ${formattedTime}`;
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const toUtcFormat = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+  
+  const startUtc = toUtcFormat(matchDate);
+  const endDate = new Date(matchDate.getTime() + 2 * 60 * 60 * 1000);
+  const endUtc = toUtcFormat(endDate);
+
+  const details = `Live scores and fixtures on 90+minutes: ${location.origin}`;
+  const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${startUtc}/${endUtc}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(leagueName)}`;
+  if (elements.calendarGoogleLink) elements.calendarGoogleLink.href = googleUrl;
+
+  elements.calendarDialog.showModal();
+}
+
+function downloadIcs(match) {
+  if (!match) return;
+  const home = match.home.displayName || match.home.name || "Home";
+  const away = match.away.displayName || match.away.name || "Away";
+  const leagueName = match.league ? match.league.name : "Football";
+  const title = `${home} vs ${away} — ${leagueName}`;
+  const matchDate = new Date(match.date);
+  const pad = (n) => String(n).padStart(2, "0");
+  const toUtcFormat = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+
+  const startUtc = toUtcFormat(matchDate);
+  const endDate = new Date(matchDate.getTime() + 2 * 60 * 60 * 1000);
+  const endUtc = toUtcFormat(endDate);
+  const nowUtc = toUtcFormat(new Date());
+
+  const icsContent = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//90+minutes//Soccer Fixtures//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:match-${match.id}@90plusminutes`,
+    `DTSTAMP:${nowUtc}`,
+    `DTSTART:${startUtc}`,
+    `DTEND:${endUtc}`,
+    `SUMMARY:${title}`,
+    `DESCRIPTION:Follow live scores on 90+minutes: ${location.origin}`,
+    `LOCATION:${leagueName}`,
+    "STATUS:CONFIRMED",
+    "END:VEVENT",
+    "END:VCALENDAR"
+  ].join("\r\n");
+
+  const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", `${home.toLowerCase().replace(/\s+/g, "-")}-vs-${away.toLowerCase().replace(/\s+/g, "-")}.ics`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function renderStandings() {
@@ -1920,6 +2219,18 @@ elements.matchList.addEventListener("click", (event) => {
     loadMatchDetails(detailButton.dataset.matchDetail);
     return;
   }
+  const revealTarget = event.target.closest("[data-reveal-score]");
+  if (revealTarget) {
+    state.revealedMatchIds.add(revealTarget.dataset.revealScore);
+    renderMatches();
+    return;
+  }
+  const calBtn = event.target.closest("[data-cal-id]");
+  if (calBtn) {
+    const match = state.matches.find((m) => m.id === calBtn.dataset.calId);
+    if (match) openCalendarModal(match);
+    return;
+  }
   const favoriteButton = event.target.closest("[data-favorite]");
   if (!favoriteButton) return;
   const id = favoriteButton.dataset.favorite;
@@ -1937,6 +2248,12 @@ document.querySelector("#detail-back").addEventListener("click", () => {
 });
 
 elements.detailContent.addEventListener("click", (event) => {
+  const calBtn = event.target.closest("[data-cal-id]");
+  if (calBtn) {
+    const match = state.matches.find((m) => m.id === calBtn.dataset.calId);
+    if (match) openCalendarModal(match);
+    return;
+  }
   const playerButton = event.target.closest("[data-player-id], [data-player-name]");
   if (playerButton) {
     openPlayerDetails(playerButton);
@@ -1954,6 +2271,51 @@ document.querySelector(".player-dialog-close").addEventListener("click", () => {
 state.playerDialog.addEventListener("click", (event) => {
   if (event.target === state.playerDialog) state.playerDialog.close();
 });
+
+if (elements.calendarDialogClose) {
+  elements.calendarDialogClose.addEventListener("click", () => {
+    elements.calendarDialog.close();
+  });
+}
+if (elements.calendarDialog) {
+  elements.calendarDialog.addEventListener("click", (event) => {
+    if (event.target === elements.calendarDialog) elements.calendarDialog.close();
+  });
+}
+if (elements.calendarIcsBtn) {
+  elements.calendarIcsBtn.addEventListener("click", () => {
+    downloadIcs(state.activeCalendarMatch);
+  });
+}
+
+if (elements.spoilerToggle) {
+  elements.spoilerToggle.addEventListener("click", () => {
+    state.spoilerShield = !state.spoilerShield;
+    elements.spoilerToggle.classList.toggle("active", state.spoilerShield);
+    elements.spoilerToggle.setAttribute("aria-pressed", String(state.spoilerShield));
+    elements.spoilerToggle.textContent = state.spoilerShield ? "🙈 Spoiler Shield: ON" : "🙈 Spoiler Shield: OFF";
+    renderMatches();
+  });
+}
+
+if (elements.liveTableToggle) {
+  elements.liveTableToggle.addEventListener("click", () => {
+    state.liveTableOpen = !state.liveTableOpen;
+    elements.liveTableToggle.classList.toggle("active", state.liveTableOpen);
+    if (elements.liveStandingsDrawer) {
+      elements.liveStandingsDrawer.hidden = !state.liveTableOpen;
+      if (state.liveTableOpen) renderLiveStandings();
+    }
+  });
+}
+
+if (elements.liveStandingsClose) {
+  elements.liveStandingsClose.addEventListener("click", () => {
+    state.liveTableOpen = false;
+    if (elements.liveTableToggle) elements.liveTableToggle.classList.remove("active");
+    if (elements.liveStandingsDrawer) elements.liveStandingsDrawer.hidden = true;
+  });
+}
 
 elements.searchInput.addEventListener("input", renderMatches);
 elements.favoritesToggle.addEventListener("click", () => {

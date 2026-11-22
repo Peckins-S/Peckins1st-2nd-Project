@@ -765,3 +765,340 @@ h1 { font-size: 42px; }
   color: #a4f59e;
   font: 11px "DM Mono", monospace;
 }
+
+.match-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.match-row {
+  grid-template-columns: 92px minmax(130px, 1fr) 64px auto !important;
+}
+
+@media (max-width: 760px) {
+  .match-row {
+    grid-template-columns: 64px minmax(90px, 1fr) 46px auto !important;
+  }
+}
+
+/* Tool Buttons (Spoiler Shield & Live Table) */
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font: 500 12px "Space Grotesk", sans-serif;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
+}
+.tool-btn:hover {
+  background: #233126;
+  color: var(--text);
+  border-color: #3f5544;
+}
+.tool-btn.active {
+  background: #1f3724;
+  border-color: #4e8257;
+  color: var(--green);
+  font-weight: 600;
+}
+.tool-btn--table {
+  border-color: #2b3e4a;
+}
+.tool-btn--table.active {
+  background: #172a38;
+  border-color: #3b6b8c;
+  color: #79c5f8;
+}
+
+/* 90+ Drama Tab & Badges */
+.filter-tab--drama {
+  border-color: #554418;
+  color: #f7d154;
+}
+.filter-tab--drama.active {
+  background: #2d240c;
+  border-color: #e5b324;
+  color: #ffe680;
+  box-shadow: 0 0 12px rgba(247, 209, 84, 0.25);
+}
+.drama-icon {
+  display: inline-block;
+  animation: drama-pulse 1.4s infinite;
+}
+@keyframes drama-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.8; }
+}
+
+.drama-pulse-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #382c0b;
+  border: 1px solid #d4a317;
+  color: #ffe270;
+  font: 700 10px "Space Grotesk", sans-serif;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  animation: drama-glow 1.8s infinite;
+}
+@keyframes drama-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(255, 226, 112, 0.2); }
+  50% { box-shadow: 0 0 10px rgba(255, 226, 112, 0.6); }
+}
+
+/* Spoiler Shield Mode */
+.scores.spoiler-masked {
+  cursor: pointer;
+  user-select: none;
+}
+.spoiler-hidden-box {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: #1c2720;
+  border: 1px dashed #3e5344;
+  color: #8fa194;
+  font: 600 10px "Space Grotesk", sans-serif;
+  transition: all .2s ease;
+}
+.scores.spoiler-masked:hover .spoiler-hidden-box {
+  background: #25362a;
+  color: var(--green);
+  border-color: var(--green);
+}
+.thriller-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 3px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font: 600 9px "Space Grotesk", sans-serif;
+  white-space: nowrap;
+}
+.thriller--classic {
+  background: #3d1b17;
+  border: 1px solid #b54938;
+  color: #ff9d8f;
+}
+.thriller--good {
+  background: #2b2812;
+  border: 1px solid #8f7d24;
+  color: #fce372;
+}
+.thriller--tense {
+  background: #18282b;
+  border: 1px solid #366b75;
+  color: #8fe3f0;
+}
+.thriller--quiet {
+  background: #1e2420;
+  border: 1px solid #3d4a40;
+  color: #9cb0a1;
+}
+
+/* Where to Watch Broadcaster Tags */
+.broadcast-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #1b262e;
+  border: 1px solid #2f495c;
+  color: #99d2fa;
+  font: 500 10px "Space Grotesk", sans-serif;
+  margin-left: 6px;
+}
+.broadcast-container-hero {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  background: #16222b;
+  border: 1px solid #274052;
+}
+.broadcast-label-hero {
+  color: #8bb7d6;
+  font: 600 11px "Space Grotesk", sans-serif;
+}
+.broadcast-badge-hero {
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #213542;
+  color: #bae2fd;
+  font: 500 11px "Space Grotesk", sans-serif;
+}
+
+/* Calendar Button & Modal */
+.cal-sync-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all .15s ease;
+}
+.cal-sync-button:hover {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--green);
+}
+.calendar-dialog {
+  width: min(440px, calc(100% - 28px));
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+.calendar-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+}
+.calendar-dialog-content {
+  position: relative;
+  padding: 26px;
+}
+.calendar-dialog-content h2 {
+  margin: 4px 0 10px;
+  font: 600 22px "Space Grotesk", sans-serif;
+}
+.calendar-dialog-match {
+  margin: 0 0 4px;
+  font: 600 15px "Space Grotesk", sans-serif;
+  color: var(--green);
+}
+.calendar-dialog-time {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font: 12px "DM Mono", monospace;
+}
+.calendar-dialog-actions {
+  display: grid;
+  gap: 10px;
+}
+.calendar-dialog-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 7px;
+  font: 600 13px "Space Grotesk", sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all .15s ease;
+  border: 1px solid transparent;
+}
+.google-cal-btn {
+  background: #25442c;
+  color: #c9f5c4;
+  border-color: #3d6a45;
+}
+.google-cal-btn:hover {
+  background: #31583a;
+  color: #ffffff;
+}
+.ics-cal-btn {
+  background: #202b23;
+  color: var(--text);
+  border-color: var(--border);
+}
+.ics-cal-btn:hover {
+  background: #2a3a2f;
+  border-color: #4c6653;
+}
+
+/* Live As It Stands Table Drawer */
+.live-standings-drawer {
+  margin: 14px 0 20px;
+  padding: 16px;
+  border: 1px solid #284435;
+  border-radius: 9px;
+  background: #141f17;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+.live-standings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.live-standings-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.live-standings-title strong {
+  font-weight: 700;
+  color: #a3f7a6;
+}
+.live-standings-league {
+  color: var(--muted);
+  font-size: 11px;
+}
+.live-standings-close {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 15px;
+  cursor: pointer;
+}
+.live-standings-close:hover {
+  color: var(--text);
+}
+.pulse-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #52e061;
+  box-shadow: 0 0 8px #52e061;
+  animation: live-blink 1.5s infinite;
+}
+@keyframes live-blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+.live-rank-up {
+  color: #5be06c;
+  font-weight: 700;
+  font-size: 11px;
+}
+.live-rank-down {
+  color: #ff6e6b;
+  font-weight: 700;
+  font-size: 11px;
+}
+.live-rank-same {
+  color: #647368;
+  font-size: 11px;
+}

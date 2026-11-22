@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#101612">
     <meta name="description" content="Follow upcoming soccer fixtures across Europe's major leagues.">
     <title>90+minutes — Soccer Fixtures</title>
-    <link rel="stylesheet" href="style.css?v=2">
-    <script src="supabase-config.js?v=2" defer></script>
-    <script src="app.js?v=2" defer></script>
+    <link rel="stylesheet" href="style.css?v=3">
+    <script src="supabase-config.js?v=3" defer></script>
+    <script src="app.js?v=3" defer></script>
   </head>
   <body>
     <aside class="top-advert" id="top-advert" aria-label="Sponsored advertisement" hidden>
@@ -85,8 +85,11 @@
               <button class="filter-tab" type="button" data-filter="live" role="tab" aria-selected="false"><span class="tab-live-dot"></span> Live</button>
               <button class="filter-tab active" type="button" data-filter="upcoming" role="tab" aria-selected="true">Upcoming</button>
               <button class="filter-tab" type="button" data-filter="finished" role="tab" aria-selected="false">Finished</button>
+              <button class="filter-tab filter-tab--drama" type="button" data-filter="drama" role="tab" aria-selected="false"><span class="drama-icon">⚡</span> 90+ Drama</button>
             </div>
             <div class="toolbar-controls">
+              <button class="tool-btn" id="spoiler-toggle" type="button" aria-pressed="false" title="Hide/blur scores so replays aren't spoiled">🙈 Spoiler Shield: OFF</button>
+              <button class="tool-btn" id="live-table-toggle" type="button" title="View live 'As It Stands' table simulation for today's matches">📊 Live Table</button>
               <label class="search-box">
                 <span class="sr-only">Search teams or leagues</span>
                 <span aria-hidden="true">⌕</span>
@@ -94,6 +97,17 @@
               </label>
               <button class="favorites-toggle" id="favorites-toggle" type="button" aria-pressed="false" aria-label="Show favorite matches">☆</button>
             </div>
+          </div>
+          <div class="live-standings-drawer" id="live-standings-drawer" hidden>
+            <div class="live-standings-header">
+              <div class="live-standings-title">
+                <span class="pulse-indicator"></span>
+                <strong>Live 'As It Stands' Table</strong>
+                <span class="live-standings-league" id="live-standings-league-name"></span>
+              </div>
+              <button class="live-standings-close" id="live-standings-close" type="button" aria-label="Close live table">✕</button>
+            </div>
+            <div class="live-standings-body" id="live-standings-body"></div>
           </div>
           <div id="match-list" class="match-list" aria-live="polite"></div>
           <p class="last-updated" id="last-updated" aria-live="polite">Loading fixtures…</p>
@@ -139,6 +153,23 @@
       <div class="player-dialog-content">
         <button class="player-dialog-close" type="button" aria-label="Close player details">×</button>
         <div id="player-dialog-body"></div>
+      </div>
+    </dialog>
+    <dialog class="calendar-dialog" id="calendar-dialog" aria-labelledby="calendar-dialog-title">
+      <div class="calendar-dialog-content">
+        <button class="player-dialog-close" id="calendar-dialog-close" type="button" aria-label="Close calendar options">×</button>
+        <p class="section-kicker">ADD TO CALENDAR</p>
+        <h2 id="calendar-dialog-title">Sync Fixture</h2>
+        <p class="calendar-dialog-match" id="calendar-dialog-match"></p>
+        <p class="calendar-dialog-time" id="calendar-dialog-time"></p>
+        <div class="calendar-dialog-actions">
+          <a class="calendar-dialog-btn google-cal-btn" id="calendar-google-link" target="_blank" rel="noopener noreferrer">
+            <span class="cal-btn-icon">📅</span> Add to Google Calendar
+          </a>
+          <button class="calendar-dialog-btn ics-cal-btn" id="calendar-ics-btn" type="button">
+            <span class="cal-btn-icon">📥</span> Download .ICS File (Apple / Outlook)
+          </button>
+        </div>
       </div>
     </dialog>
   </body>

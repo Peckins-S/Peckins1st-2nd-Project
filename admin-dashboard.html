@@ -179,6 +179,16 @@
               <span>Button link <small>HTTPS links only</small></span>
               <input id="advert-button-url" type="url" maxlength="500" placeholder="https://example.com">
             </label>
+            <div class="admin-field-row advert-dates-row">
+              <label class="admin-field">
+                <span>Start date <small>Optional</small></span>
+                <input id="advert-start-date" type="date">
+              </label>
+              <label class="admin-field">
+                <span>End date <small>Optional</small></span>
+                <input id="advert-end-date" type="date">
+              </label>
+            </div>
             <div class="advert-image-fields">
               <div>
                 <label class="admin-field">
@@ -201,6 +211,13 @@
                   <input id="advert-logo-remove" type="checkbox">
                   <span>Remove current logo or graphic</span>
                 </label>
+              </div>
+            </div>
+            <div class="advert-preview-section">
+              <p class="admin-card-kicker">LIVE PREVIEW</p>
+              <h4>How it looks on the site</h4>
+              <div class="advert-preview-box" id="advert-preview-box">
+                <p class="admin-help">Fill in the fields above to see a live preview of this advert.</p>
               </div>
             </div>
             <p class="advert-editor-status" id="advert-editor-status" role="status" aria-live="polite"></p>

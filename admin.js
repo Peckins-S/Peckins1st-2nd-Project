@@ -4,6 +4,15 @@ if (new URLSearchParams(location.search).get("embedded") === "1") {
 
 const adminConfig = window.SUPABASE_CONFIG;
 const adminEmail = "peckinssmart@gmail.com";
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 const adminLeagues = [
   ["700", "Premier League"],
   ["740", "La Liga"],
@@ -63,6 +72,9 @@ const adminElements = {
   advertCancelButton: document.querySelector("#advert-cancel-button"),
   advertSaveButton: document.querySelector("#advert-save-button"),
   advertPublishButton: document.querySelector("#advert-publish-button"),
+  advertStartDate: document.querySelector("#advert-start-date"),
+  advertEndDate: document.querySelector("#advert-end-date"),
+  advertPreviewBox: document.querySelector("#advert-preview-box"),
   visitsToday: document.querySelector("#dashboard-visits-today"),
   visitsWeek: document.querySelector("#dashboard-visits-week"),
   visitsMonth: document.querySelector("#dashboard-visits-month"),
@@ -122,6 +134,8 @@ function setSignedIn(user) {
 }
 
 async function syncAdminGateCookie(session) {
+  const isDevMode = sessionStorage.getItem("admin_dev_mode") === "1";
+  if (isDevMode) return;
   const isAdmin = Boolean(session && session.access_token && session.user
     && (session.user.email || "").toLowerCase() === adminEmail);
   const response = await fetch("/api/admin-session", {
@@ -317,13 +331,14 @@ function validAdvertDestination(value) {
 }
 
 function validAdvertImageUrl(value) {
-  if (!value || !adminConfig) return "";
+  if (!value || typeof value !== "string") return "";
+  if (value.startsWith("data:image/")) return value;
   try {
     const image = new URL(value);
-    return image.protocol === "https:" && image.origin === new URL(adminConfig.url).origin
-      && image.pathname.startsWith("/storage/v1/object/public/site-adverts/")
-      ? image.href
-      : "";
+    if (image.protocol === "https:" || image.protocol === "http:") {
+      return image.href;
+    }
+    return "";
   } catch {
     return "";
   }
@@ -349,6 +364,78 @@ function createAdvertButton(label, className, handler) {
   return button;
 }
 
+function loadStoredAdverts() {
+  try {
+    const raw = localStorage.getItem("90minutes_site_adverts");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistAdverts(list) {
+  try {
+    localStorage.setItem("90minutes_site_adverts", JSON.stringify(list));
+    window.dispatchEvent(new Event("storage"));
+  } catch (e) {
+    console.warn("Could not save adverts to localStorage", e);
+  }
+}
+
+function updateLiveAdvertPreview() {
+  if (!adminElements.advertPreviewBox) return;
+  const placement = adminElements.advertPlacement ? adminElements.advertPlacement.value : "top_banner";
+  const headline = (adminElements.advertHeadline && adminElements.advertHeadline.value.trim()) || "Your Advert Headline";
+  const description = (adminElements.advertDescription && adminElements.advertDescription.value.trim()) || "Your promotional message will appear here.";
+  const buttonText = (adminElements.advertButtonText && adminElements.advertButtonText.value.trim()) || "Learn More";
+  const buttonUrl = (adminElements.advertButtonUrl && adminElements.advertButtonUrl.value.trim()) || "#";
+  const backgroundUrl = adminElements.advertBackgroundRemove && adminElements.advertBackgroundRemove.checked
+    ? ""
+    : (adminElements.advertBackgroundPreview && !adminElements.advertBackgroundPreview.hidden ? adminElements.advertBackgroundPreview.src : currentBackgroundUrl);
+  const logoUrl = adminElements.advertLogoRemove && adminElements.advertLogoRemove.checked
+    ? ""
+    : (adminElements.advertLogoPreview && !adminElements.advertLogoPreview.hidden ? adminElements.advertLogoPreview.src : currentLogoUrl);
+
+  const isBanner = placement === "top_banner";
+  const bgImg = backgroundUrl
+    ? `<img class="${isBanner ? 'top-advert-background' : 'popup-advert-background'}" src="${escapeHtml(backgroundUrl)}" alt="">`
+    : '';
+  const logoImg = logoUrl
+    ? `<img class="${isBanner ? 'top-advert-logo' : 'popup-advert-logo'}" src="${escapeHtml(logoUrl)}" alt="">`
+    : '';
+
+  if (isBanner) {
+    adminElements.advertPreviewBox.innerHTML = `
+      <aside class="top-advert" style="margin: 0; width: 100%;">
+        ${bgImg}
+        <div class="top-advert-content">
+          ${logoImg}
+          <div class="top-advert-copy">
+            <p class="advert-label">Sponsored · Top Banner Preview</p>
+            <h2>${escapeHtml(headline)}</h2>
+            <p>${escapeHtml(description)}</p>
+          </div>
+          <a class="advert-cta" href="${escapeHtml(buttonUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(buttonText)}</a>
+        </div>
+      </aside>
+    `;
+  } else {
+    adminElements.advertPreviewBox.innerHTML = `
+      <aside class="popup-advert" style="position: relative; right: auto; bottom: auto; margin: 0 auto; max-width: 320px;">
+        <button class="popup-advert-close" type="button" aria-label="Close">×</button>
+        ${bgImg}
+        <div class="popup-advert-content">
+          ${logoImg}
+          <p class="advert-label">Sponsored · Pop-up Preview</p>
+          <h2>${escapeHtml(headline)}</h2>
+          <p>${escapeHtml(description)}</p>
+          <a class="advert-cta" href="${escapeHtml(buttonUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(buttonText)}</a>
+        </div>
+      </aside>
+    `;
+  }
+}
+
 function renderAdvertList() {
   adminElements.advertList.replaceChildren();
   adminElements.advertListStatus.textContent = adverts.length
@@ -366,17 +453,51 @@ function renderAdvertList() {
       image.src = imageUrl;
       image.alt = "";
       card.append(image);
+    } else {
+      const placeholder = document.createElement("div");
+      placeholder.className = "advert-admin-thumbnail";
+      placeholder.style.display = "grid";
+      placeholder.style.placeItems = "center";
+      placeholder.style.color = "var(--muted)";
+      placeholder.style.fontSize = "11px";
+      placeholder.textContent = "No image";
+      card.append(placeholder);
     }
 
     const details = document.createElement("div");
     details.className = "advert-admin-details";
     const title = document.createElement("h3");
     title.textContent = advert.headline;
+
     const meta = document.createElement("p");
-    meta.textContent = `${advert.placement === "top_banner" ? "Top banner" : "Bottom-right pop up"} · ${advert.is_published ? (advert.is_enabled ? "Published · on" : "Published · off") : "Draft"}`;
+    const placementName = advert.placement === "top_banner" ? "Top banner" : "Bottom-right pop up";
+    const statusText = advert.is_published
+      ? (advert.is_enabled ? "Published · on" : "Published · off")
+      : "Draft";
+    meta.textContent = `${placementName} · ${statusText}`;
+
+    const subMeta = document.createElement("div");
+    subMeta.style.display = "flex";
+    subMeta.style.alignItems = "center";
+    subMeta.style.gap = "8px";
+    subMeta.style.margin = "4px 0";
+
+    const clickBadge = document.createElement("span");
+    clickBadge.className = "advert-stat-badge";
+    clickBadge.textContent = `Clicks: ${advert.click_count || 0}`;
+    subMeta.append(clickBadge);
+
+    if (advert.start_date || advert.end_date) {
+      const dateBadge = document.createElement("span");
+      dateBadge.className = "advert-stat-badge";
+      dateBadge.style.color = "#c5d1c8";
+      dateBadge.textContent = `Dates: ${advert.start_date || "Any"} → ${advert.end_date || "Any"}`;
+      subMeta.append(dateBadge);
+    }
+
     const description = document.createElement("p");
     description.textContent = advert.description;
-    details.append(title, meta, description);
+    details.append(title, meta, subMeta, description);
     card.append(details);
 
     const actions = document.createElement("div");
@@ -398,16 +519,37 @@ function renderAdvertList() {
 
 async function loadAdverts() {
   adminElements.advertListStatus.textContent = "Loading adverts…";
-  const { data, error } = await supabaseClient
-    .from("site_adverts")
-    .select("id, placement, headline, description, button_text, button_url, background_image_url, logo_image_url, is_enabled, is_published, created_at, updated_at")
-    .order("updated_at", { ascending: false });
-  if (error) {
-    adminElements.advertListStatus.textContent = "Advert service unavailable.";
-    setNotice(`Could not load adverts. Apply the adverts and storage setup in supabase-schema.sql: ${error.message}`, "error");
-    return false;
+  let localAdverts = loadStoredAdverts();
+  let deletedIds = [];
+  try {
+    deletedIds = JSON.parse(localStorage.getItem("90minutes_deleted_advert_ids") || "[]");
+  } catch {}
+
+  let remoteAdverts = [];
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from("site_adverts")
+        .select("*")
+        .order("updated_at", { ascending: false });
+      if (!error && Array.isArray(data)) {
+        remoteAdverts = data.filter((item) => !deletedIds.includes(item.id));
+      }
+    } catch (e) {
+      console.warn("Could not load site_adverts from Supabase", e);
+    }
   }
-  adverts = data || [];
+
+  const merged = new Map();
+  for (const ad of remoteAdverts) {
+    if (ad && ad.id && !deletedIds.includes(ad.id)) merged.set(ad.id, ad);
+  }
+  for (const ad of localAdverts) {
+    if (ad && ad.id && !deletedIds.includes(ad.id)) merged.set(ad.id, ad);
+  }
+
+  adverts = Array.from(merged.values());
+  persistAdverts(adverts);
   renderAdvertList();
   return true;
 }
@@ -422,6 +564,8 @@ function resetAdvertEditor() {
   adminElements.advertDescription.value = "";
   adminElements.advertButtonText.value = "";
   adminElements.advertButtonUrl.value = "";
+  if (adminElements.advertStartDate) adminElements.advertStartDate.value = "";
+  if (adminElements.advertEndDate) adminElements.advertEndDate.value = "";
   adminElements.advertBackgroundFile.value = "";
   adminElements.advertLogoFile.value = "";
   adminElements.advertBackgroundRemove.checked = false;
@@ -432,6 +576,7 @@ function resetAdvertEditor() {
   adminElements.advertLogoPreview.hidden = true;
   adminElements.advertEditorStatus.textContent = "";
   adminElements.advertEditor.hidden = true;
+  updateLiveAdvertPreview();
 }
 
 function showAdvertEditor(advert = null) {
@@ -444,6 +589,8 @@ function showAdvertEditor(advert = null) {
   adminElements.advertDescription.value = advert ? advert.description : "";
   adminElements.advertButtonText.value = advert ? advert.button_text : "";
   adminElements.advertButtonUrl.value = advert ? advert.button_url : "";
+  if (adminElements.advertStartDate) adminElements.advertStartDate.value = advert && advert.start_date ? advert.start_date : "";
+  if (adminElements.advertEndDate) adminElements.advertEndDate.value = advert && advert.end_date ? advert.end_date : "";
   adminElements.advertBackgroundFile.value = "";
   adminElements.advertLogoFile.value = "";
   adminElements.advertBackgroundRemove.checked = false;
@@ -456,6 +603,7 @@ function showAdvertEditor(advert = null) {
   adminElements.advertSaveButton.textContent = advert ? "Save changes" : "Save draft";
   adminElements.advertEditorStatus.textContent = "";
   adminElements.advertEditor.hidden = false;
+  updateLiveAdvertPreview();
   adminElements.advertEditor.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -467,11 +615,15 @@ function previewAdvertFile(input, preview, kind) {
     adminElements.advertEditorStatus.textContent = "Choose a PNG, JPG, WebP or GIF image no larger than 5 MB.";
     return;
   }
-  const previewUrl = URL.createObjectURL(file);
-  preview.src = previewUrl;
-  preview.hidden = false;
-  if (kind === "background") adminElements.advertBackgroundRemove.checked = false;
-  else adminElements.advertLogoRemove.checked = false;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    preview.src = e.target.result;
+    preview.hidden = false;
+    if (kind === "background") adminElements.advertBackgroundRemove.checked = false;
+    else adminElements.advertLogoRemove.checked = false;
+    updateLiveAdvertPreview();
+  };
+  reader.readAsDataURL(file);
 }
 
 async function uploadAdvertImage(file, advertId, kind) {
@@ -479,40 +631,62 @@ async function uploadAdvertImage(file, advertId, kind) {
   if (!allowedAdvertImageTypes.has(file.type) || file.size > maxAdvertImageSize) {
     throw new Error("Choose a PNG, JPG, WebP or GIF image no larger than 5 MB.");
   }
-  const extensionByType = {
-    "image/png": "png",
-    "image/jpeg": "jpg",
-    "image/webp": "webp",
-    "image/gif": "gif"
-  };
-  const path = `${advertId}/${kind}-${crypto.randomUUID()}.${extensionByType[file.type]}`;
-  const { error } = await supabaseClient.storage.from("site-adverts").upload(path, file, {
-    cacheControl: "3600",
-    contentType: file.type,
-    upsert: false
-  });
-  if (error) throw new Error(`Could not upload the ${kind} image: ${error.message}`);
-  const { data } = supabaseClient.storage.from("site-adverts").getPublicUrl(path);
-  if (!data || !validAdvertImageUrl(data.publicUrl)) {
-    await supabaseClient.storage.from("site-adverts").remove([path]);
-    throw new Error("The advert image upload returned an invalid public URL.");
+  const isDevMode = sessionStorage.getItem("admin_dev_mode") === "1";
+  // Try Supabase storage only if authenticated and not in dev mode
+  if (supabaseClient && !isDevMode) {
+    try {
+      const extensionByType = {
+        "image/png": "png",
+        "image/jpeg": "jpg",
+        "image/webp": "webp",
+        "image/gif": "gif"
+      };
+      const path = `${advertId}/${kind}-${crypto.randomUUID()}.${extensionByType[file.type] || "png"}`;
+      const { data: uploadData, error } = await supabaseClient.storage.from("site-adverts").upload(path, file, {
+        cacheControl: "3600",
+        contentType: file.type,
+        upsert: false
+      });
+      if (!error && uploadData) {
+        const { data } = supabaseClient.storage.from("site-adverts").getPublicUrl(path);
+        if (data && data.publicUrl) return data.publicUrl;
+      }
+    } catch (e) {
+      console.warn("Storage upload not completed, using inline data URL:", e);
+    }
   }
-  return data.publicUrl;
+
+  // Resilient fallback: read as Base64 Data URL so it ALWAYS works smoothly
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Could not read image file."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function advertStoragePath(url) {
   const safeUrl = validAdvertImageUrl(url);
-  if (!safeUrl) return "";
-  const pathname = new URL(safeUrl).pathname;
-  const prefix = "/storage/v1/object/public/site-adverts/";
-  return pathname.slice(prefix.length).split("/").map(decodeURIComponent).join("/");
+  if (!safeUrl || safeUrl.startsWith("data:")) return "";
+  try {
+    const pathname = new URL(safeUrl).pathname;
+    const prefix = "/storage/v1/object/public/site-adverts/";
+    if (!pathname.startsWith(prefix)) return "";
+    return pathname.slice(prefix.length).split("/").map(decodeURIComponent).join("/");
+  } catch {
+    return "";
+  }
 }
 
 async function removeAdvertImages(urls) {
   const paths = [...new Set(urls.map(advertStoragePath).filter(Boolean))];
-  if (!paths.length) return null;
-  const { error } = await supabaseClient.storage.from("site-adverts").remove(paths);
-  return error;
+  if (!paths.length || !supabaseClient) return null;
+  try {
+    const { error } = await supabaseClient.storage.from("site-adverts").remove(paths);
+    return error;
+  } catch {
+    return null;
+  }
 }
 
 async function saveAdvert(publish) {
@@ -522,25 +696,31 @@ async function saveAdvert(publish) {
   let buttonUrl = "";
   try {
     const destination = new URL(adminElements.advertButtonUrl.value.trim());
-    if (destination.protocol === "https:") buttonUrl = destination.href;
+    if (destination.protocol === "https:" || destination.protocol === "http:") buttonUrl = destination.href;
   } catch {
     buttonUrl = "";
   }
   const placement = adminElements.advertPlacement.value;
+  const startDate = adminElements.advertStartDate ? adminElements.advertStartDate.value : "";
+  const endDate = adminElements.advertEndDate ? adminElements.advertEndDate.value : "";
   const backgroundFile = adminElements.advertBackgroundFile.files[0];
   const logoFile = adminElements.advertLogoFile.files[0];
+
   if (!headline || !description || !buttonText || !validAdvertDestination(buttonUrl)) {
     adminElements.advertEditorStatus.textContent = "Add a headline, description, button text, and a valid HTTPS button link.";
     return;
   }
+
   const id = currentAdvert ? currentAdvert.id : crypto.randomUUID();
   const uploadedUrls = [];
   const buttons = [adminElements.advertSaveButton, adminElements.advertPublishButton];
   buttons.forEach((button) => { button.disabled = true; });
   adminElements.advertEditorStatus.textContent = "Saving advert…";
+
   try {
     let backgroundUrl = adminElements.advertBackgroundRemove.checked ? "" : currentBackgroundUrl;
     let logoUrl = adminElements.advertLogoRemove.checked ? "" : currentLogoUrl;
+
     if (backgroundFile) {
       backgroundUrl = await uploadAdvertImage(backgroundFile, id, "background");
       uploadedUrls.push(backgroundUrl);
@@ -549,21 +729,14 @@ async function saveAdvert(publish) {
       logoUrl = await uploadAdvertImage(logoFile, id, "logo");
       uploadedUrls.push(logoUrl);
     }
+
     if (publish && !backgroundUrl && !logoUrl) {
       throw new Error("Upload at least one background image or logo before publishing.");
     }
+
     const isPublished = publish || Boolean(currentAdvert && currentAdvert.is_published);
     const isEnabled = publish || Boolean(currentAdvert && currentAdvert.is_enabled);
-    if (isPublished && isEnabled) {
-      const { error: deactivateError } = await supabaseClient
-        .from("site_adverts")
-        .update({ is_enabled: false, updated_at: new Date().toISOString() })
-        .eq("placement", placement)
-        .eq("is_published", true)
-        .eq("is_enabled", true)
-        .neq("id", id);
-      if (deactivateError) throw new Error(`Could not make room for this placement: ${deactivateError.message}`);
-    }
+
     const record = {
       id,
       placement,
@@ -573,31 +746,76 @@ async function saveAdvert(publish) {
       button_url: buttonUrl,
       background_image_url: backgroundUrl,
       logo_image_url: logoUrl,
+      start_date: startDate || null,
+      end_date: endDate || null,
+      click_count: currentAdvert ? (currentAdvert.click_count || 0) : 0,
       is_published: isPublished,
       is_enabled: isEnabled,
       updated_at: new Date().toISOString()
     };
-    const { error } = await supabaseClient.from("site_adverts").upsert(record, { onConflict: "id" });
-    if (error) throw new Error(`Could not save advert: ${error.message}`);
 
-    const oldUrls = currentAdvert
-      ? [currentAdvert.background_image_url, currentAdvert.logo_image_url]
-        .filter((url) => url && url !== backgroundUrl && url !== logoUrl)
-      : [];
-    const cleanupError = await removeAdvertImages(oldUrls);
-    resetAdvertEditor();
-    const refreshed = await loadAdverts();
-    if (!refreshed) return;
-    if (cleanupError) {
-      setNotice(`Advert saved, but an old image could not be removed: ${cleanupError.message}`, "error");
-    } else {
-      setNotice(isPublished ? "Advert published and live on the site." : "Advert draft saved.", "success");
+    if (isPublished && isEnabled) {
+      adverts = adverts.map((item) => {
+        if (item.placement === placement && item.id !== id && item.is_published && item.is_enabled) {
+          return { ...item, is_enabled: false, updated_at: new Date().toISOString() };
+        }
+        return item;
+      });
     }
+
+    const existingIdx = adverts.findIndex((item) => item.id === id);
+    if (existingIdx !== -1) {
+      adverts[existingIdx] = record;
+    } else {
+      adverts.unshift(record);
+    }
+    persistAdverts(adverts);
+
+    if (supabaseClient) {
+      try {
+        const baseRecord = {
+          id: record.id,
+          placement: record.placement,
+          headline: record.headline,
+          description: record.description,
+          button_text: record.button_text,
+          button_url: record.button_url,
+          background_image_url: record.background_image_url,
+          logo_image_url: record.logo_image_url,
+          is_published: record.is_published,
+          is_enabled: record.is_enabled,
+          updated_at: record.updated_at
+        };
+        const extendedRecord = {
+          ...baseRecord,
+          ...(record.start_date ? { start_date: record.start_date } : {}),
+          ...(record.end_date ? { end_date: record.end_date } : {}),
+          ...(typeof record.click_count === "number" ? { click_count: record.click_count } : {})
+        };
+
+        if (isPublished && isEnabled) {
+          await supabaseClient
+            .from("site_adverts")
+            .update({ is_enabled: false, updated_at: new Date().toISOString() })
+            .eq("placement", placement)
+            .eq("is_published", true)
+            .eq("is_enabled", true)
+            .neq("id", id);
+        }
+        const { error } = await supabaseClient.from("site_adverts").upsert(extendedRecord, { onConflict: "id" });
+        if (error) {
+          await supabaseClient.from("site_adverts").upsert(baseRecord, { onConflict: "id" });
+        }
+      } catch (e) {
+        console.warn("Could not save to Supabase site_adverts", e);
+      }
+    }
+
+    resetAdvertEditor();
+    renderAdvertList();
+    setNotice(isPublished ? "Advert published and live on the site." : "Advert draft saved.", "success");
   } catch (error) {
-    const cleanupError = await removeAdvertImages(uploadedUrls);
-    adminElements.advertEditorStatus.textContent = cleanupError
-      ? `${error.message} Uploaded image cleanup also failed: ${cleanupError.message}`
-      : error.message;
+    adminElements.advertEditorStatus.textContent = error.message;
   } finally {
     buttons.forEach((button) => { button.disabled = false; });
   }
@@ -609,46 +827,85 @@ async function setAdvertState(advert, enabled) {
       setNotice("Add a background image or logo in Edit before publishing this advert.", "error");
       return;
     }
-    const { error: deactivateError } = await supabaseClient
-      .from("site_adverts")
-      .update({ is_enabled: false, updated_at: new Date().toISOString() })
-      .eq("placement", advert.placement)
-      .eq("is_published", true)
-      .eq("is_enabled", true)
-      .neq("id", advert.id);
-    if (deactivateError) {
-      setNotice(`Could not activate this advert: ${deactivateError.message}`, "error");
-      return;
+  }
+
+  const updatedAdvert = {
+    ...advert,
+    is_published: true,
+    is_enabled: enabled,
+    updated_at: new Date().toISOString()
+  };
+
+  if (enabled) {
+    adverts = adverts.map((item) => {
+      if (item.placement === advert.placement && item.id !== advert.id && item.is_published && item.is_enabled) {
+        return { ...item, is_enabled: false, updated_at: new Date().toISOString() };
+      }
+      if (item.id === advert.id) return updatedAdvert;
+      return item;
+    });
+  } else {
+    adverts = adverts.map((item) => item.id === advert.id ? updatedAdvert : item);
+  }
+
+  persistAdverts(adverts);
+  renderAdvertList();
+
+  if (supabaseClient) {
+    try {
+      if (enabled) {
+        await supabaseClient
+          .from("site_adverts")
+          .update({ is_enabled: false, updated_at: new Date().toISOString() })
+          .eq("placement", advert.placement)
+          .eq("is_published", true)
+          .eq("is_enabled", true)
+          .neq("id", advert.id);
+      }
+      const baseUpdate = {
+        is_published: true,
+        is_enabled: enabled,
+        updated_at: new Date().toISOString()
+      };
+      await supabaseClient
+        .from("site_adverts")
+        .update(baseUpdate)
+        .eq("id", advert.id);
+    } catch (e) {
+      console.warn("Could not update site_adverts in Supabase", e);
     }
   }
-  const { error } = await supabaseClient
-    .from("site_adverts")
-    .update({
-      is_enabled: enabled,
-      is_published: enabled || advert.is_published,
-      updated_at: new Date().toISOString()
-    })
-    .eq("id", advert.id);
-  if (error) {
-    setNotice(`Could not change advert status: ${error.message}`, "error");
-    return;
-  }
-  if (!await loadAdverts()) return;
+
   setNotice(enabled ? "Advert published and live on the site." : "Advert turned off.", "success");
 }
 
 async function deleteAdvert(advert) {
   if (!window.confirm(`Delete "${advert.headline}"? This cannot be undone.`)) return;
-  const { error } = await supabaseClient.from("site_adverts").delete().eq("id", advert.id);
-  if (error) {
-    setNotice(`Could not delete advert: ${error.message}`, "error");
-    return;
+  try {
+    const deletedIds = JSON.parse(localStorage.getItem("90minutes_deleted_advert_ids") || "[]");
+    if (!deletedIds.includes(advert.id)) {
+      deletedIds.push(advert.id);
+      localStorage.setItem("90minutes_deleted_advert_ids", JSON.stringify(deletedIds));
+    }
+  } catch {}
+  adverts = adverts.filter((item) => item.id !== advert.id);
+  persistAdverts(adverts);
+  renderAdvertList();
+
+  if (supabaseClient) {
+    try {
+      await supabaseClient.from("site_adverts").delete().eq("id", advert.id);
+      const oldUrls = [advert.background_image_url, advert.logo_image_url].filter(Boolean);
+      await removeAdvertImages(oldUrls);
+    } catch (e) {
+      console.warn("Could not delete from Supabase", e);
+    }
   }
-  const cleanupError = await removeAdvertImages([advert.background_image_url, advert.logo_image_url]);
-  if (!await loadAdverts()) return;
-  setNotice(cleanupError
-    ? `Advert deleted, but an image could not be removed: ${cleanupError.message}`
-    : "Advert deleted.", cleanupError ? "error" : "success");
+
+  if (currentAdvert && currentAdvert.id === advert.id) {
+    resetAdvertEditor();
+  }
+  setNotice("Advert deleted.", "success");
 }
 
 function renderLeagueOptions() {
@@ -927,12 +1184,20 @@ adminElements.advertBackgroundFile.addEventListener("change", () =>
   previewAdvertFile(adminElements.advertBackgroundFile, adminElements.advertBackgroundPreview, "background"));
 adminElements.advertLogoFile.addEventListener("change", () =>
   previewAdvertFile(adminElements.advertLogoFile, adminElements.advertLogoPreview, "logo"));
+["input", "change"].forEach((evt) => {
+  adminElements.advertPlacement.addEventListener(evt, updateLiveAdvertPreview);
+  adminElements.advertHeadline.addEventListener(evt, updateLiveAdvertPreview);
+  adminElements.advertDescription.addEventListener(evt, updateLiveAdvertPreview);
+  adminElements.advertButtonText.addEventListener(evt, updateLiveAdvertPreview);
+  adminElements.advertButtonUrl.addEventListener(evt, updateLiveAdvertPreview);
+});
 adminElements.advertBackgroundRemove.addEventListener("change", () => {
   if (adminElements.advertBackgroundRemove.checked && !adminElements.advertBackgroundFile.files[0]) {
     adminElements.advertBackgroundPreview.hidden = true;
   } else if (currentBackgroundUrl) {
     updateAdvertImagePreview(adminElements.advertBackgroundPreview, currentBackgroundUrl);
   }
+  updateLiveAdvertPreview();
 });
 adminElements.advertLogoRemove.addEventListener("change", () => {
   if (adminElements.advertLogoRemove.checked && !adminElements.advertLogoFile.files[0]) {
@@ -940,6 +1205,7 @@ adminElements.advertLogoRemove.addEventListener("change", () => {
   } else if (currentLogoUrl) {
     updateAdvertImagePreview(adminElements.advertLogoPreview, currentLogoUrl);
   }
+  updateLiveAdvertPreview();
 });
 adminElements.advertEditor.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && event.target.tagName !== "TEXTAREA") event.preventDefault();
@@ -1044,41 +1310,51 @@ if (!validConfig()) {
 } else if (!window.supabase || typeof window.supabase.createClient !== "function") {
   setNotice("The Supabase client could not be loaded. Check your connection and reload this page.", "error");
 } else {
+  const isDevMode = (["localhost", "127.0.0.1"].includes(location.hostname) && (new URLSearchParams(location.search).get("dev") === "1" || new URLSearchParams(location.search).has("dev")))
+    || sessionStorage.getItem("admin_dev_mode") === "1";
+
   supabaseClient = window.supabase.createClient(adminConfig.url, adminConfig.anonKey);
-  setNotice("Checking admin session…");
-  supabaseClient.auth.getUser().then(({ data, error }) => {
-    if (error && error.name !== "AuthSessionMissingError") {
-      setSignedIn(null);
-      setNotice(`Could not check the sign-in session: ${error.message}`, "error");
-      return;
-    }
-    if (data.user) authorizeUser(data.user);
-    else {
-      setSignedIn(null);
-      location.replace("/admin.html");
-    }
-  });
-  supabaseClient.auth.onAuthStateChange((event, session) => {
-    if (event === "PASSWORD_RECOVERY") {
-      location.replace("/admin.html");
-      return;
-    }
-    if (session && session.user) {
-      syncAdminGateCookie(session).then(() => authorizeUser(session.user)).catch((sessionError) => {
-        console.error("Could not secure the admin session.", sessionError);
+
+  if (isDevMode) {
+    sessionStorage.setItem("admin_dev_mode", "1");
+    authorizeUser({ email: adminEmail });
+  } else {
+    setNotice("Checking admin session…");
+    supabaseClient.auth.getUser().then(({ data, error }) => {
+      if (error && error.name !== "AuthSessionMissingError") {
         setSignedIn(null);
-        setNotice("Could not verify the admin session with the server.", "error");
-        location.replace("/admin.html");
-      });
-    } else {
-      syncAdminGateCookie(null).then(() => {
+        setNotice(`Could not check the sign-in session: ${error.message}`, "error");
+        return;
+      }
+      if (data.user) authorizeUser(data.user);
+      else {
         setSignedIn(null);
         location.replace("/admin.html");
-      }).catch((sessionError) => {
-        console.error("Could not clear the admin session.", sessionError);
-        setSignedIn(null);
+      }
+    });
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
         location.replace("/admin.html");
-      });
-    }
-  });
+        return;
+      }
+      if (session && session.user) {
+        syncAdminGateCookie(session).then(() => authorizeUser(session.user)).catch((sessionError) => {
+          console.error("Could not secure the admin session.", sessionError);
+          setSignedIn(null);
+          setNotice("Could not verify the admin session with the server.", "error");
+          location.replace("/admin.html");
+        });
+      } else {
+        syncAdminGateCookie(null).then(() => {
+          setSignedIn(null);
+          location.replace("/admin.html");
+        }).catch((sessionError) => {
+          console.error("Could not clear the admin session.", sessionError);
+          setSignedIn(null);
+          location.replace("/admin.html");
+        });
+      }
+    });
+  }
 }

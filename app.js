@@ -822,15 +822,14 @@ elements.adminResetRequest.addEventListener("click", async () => {
 });
 
 function validAdvertImageUrl(value) {
-  const config = getSupabaseConfig();
-  if (!config || typeof value !== "string" || !value) return "";
+  if (!value || typeof value !== "string") return "";
+  if (value.startsWith("data:image/")) return value;
   try {
     const image = new URL(value);
-    const storageOrigin = new URL(config.url).origin;
-    return image.protocol === "https:" && image.origin === storageOrigin
-      && image.pathname.startsWith("/storage/v1/object/public/site-adverts/")
-      ? image.href
-      : "";
+    if (image.protocol === "https:" || image.protocol === "http:") {
+      return image.href;
+    }
+    return "";
   } catch {
     return "";
   }
@@ -853,17 +852,65 @@ function configureAdvertLink(link, advert) {
   } catch {
     return false;
   }
-  if (destination.protocol !== "https:") return false;
+  if (destination.protocol !== "https:" && destination.protocol !== "http:") return false;
   link.href = destination.href;
   link.textContent = advert.button_text;
   return true;
 }
 
+async function trackAdvertClick(advertId) {
+  if (!advertId) return;
+  try {
+    const raw = localStorage.getItem("90minutes_site_adverts");
+    if (raw) {
+      const list = JSON.parse(raw);
+      const item = list.find((a) => a.id === advertId);
+      if (item) {
+        item.click_count = (item.click_count || 0) + 1;
+        localStorage.setItem("90minutes_site_adverts", JSON.stringify(list));
+      }
+    }
+
+    const config = getSupabaseConfig();
+    if (config) {
+      const baseUrl = config.url.replace(/\/+$/, "");
+      await fetch(`${baseUrl}/rest/v1/rpc/increment_advert_click`, {
+        method: "POST",
+        headers: {
+          apikey: config.anonKey,
+          Authorization: `Bearer ${config.anonKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ p_advert_id: advertId })
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.warn("Could not track advert click", e);
+  }
+}
+
 function renderAdvertPlacement(placement, advert) {
-  if (!advert) return;
   const isBanner = placement === "top_banner";
   const prefix = isBanner ? "top-advert" : "popup-advert";
   const container = isBanner ? elements.topAdvert : elements.popupAdvert;
+  if (!container) return;
+
+  if (!advert || !advert.is_published || !advert.is_enabled) {
+    container.hidden = true;
+    return;
+  }
+
+  // Check optional start and end date validity
+  const today = new Date().toISOString().slice(0, 10);
+  if (advert.start_date && today < advert.start_date) {
+    container.hidden = true;
+    return;
+  }
+  if (advert.end_date && today > advert.end_date) {
+    container.hidden = true;
+    return;
+  }
+
   const background = document.querySelector(`#${prefix}-background`);
   const logo = document.querySelector(`#${prefix}-logo`);
   const headline = document.querySelector(`#${prefix}-headline`);
@@ -874,32 +921,71 @@ function renderAdvertPlacement(placement, advert) {
   description.textContent = advert.description;
   configureAdvertImage(background, advert.background_image_url);
   configureAdvertImage(logo, advert.logo_image_url);
-  if (!configureAdvertLink(cta, advert)) return;
-  if (isBanner) {
-    container.hidden = false;
+  if (!configureAdvertLink(cta, advert)) {
+    container.hidden = true;
     return;
   }
-  window.setTimeout(() => { container.hidden = false; }, 5000);
+
+  cta.onclick = () => {
+    trackAdvertClick(advert.id);
+  };
+
+  container.hidden = false;
 }
 
 async function loadPublicAdverts() {
-  const config = getSupabaseConfig();
-  if (!config) return;
-  const baseUrl = config.url.replace(/\/+$/, "");
-  const response = await fetch(
-    `${baseUrl}/rest/v1/site_adverts?select=placement,headline,description,button_text,button_url,background_image_url,logo_image_url,updated_at&is_enabled=eq.true&is_published=eq.true&order=updated_at.desc`,
-    {
-      headers: {
-        apikey: config.anonKey,
-        Authorization: `Bearer ${config.anonKey}`
-      }
+  let localAdverts = [];
+  let deletedIds = [];
+  try {
+    deletedIds = JSON.parse(localStorage.getItem("90minutes_deleted_advert_ids") || "[]");
+    const raw = localStorage.getItem("90minutes_site_adverts");
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) localAdverts = list;
     }
-  );
-  if (!response.ok) throw new Error(`Published adverts request failed (${response.status}).`);
-  const adverts = await response.json();
-  if (!Array.isArray(adverts)) throw new Error("Published adverts response was not a list.");
+  } catch {}
+
+  let remoteAdverts = [];
+  const config = getSupabaseConfig();
+  if (config) {
+    try {
+      const baseUrl = config.url.replace(/\/+$/, "");
+      const response = await fetch(
+        `${baseUrl}/rest/v1/site_adverts?select=*&order=updated_at.desc`,
+        {
+          headers: {
+            apikey: config.anonKey,
+            Authorization: `Bearer ${config.anonKey}`
+          }
+        }
+      );
+      if (response.ok) {
+        const rows = await response.json();
+        if (Array.isArray(rows)) {
+          remoteAdverts = rows;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load adverts from Supabase API:", e);
+    }
+  }
+
+  const mergedMap = new Map();
+  for (const ad of remoteAdverts) {
+    if (ad && ad.id && !deletedIds.includes(ad.id)) {
+      mergedMap.set(ad.id, ad);
+    }
+  }
+  for (const ad of localAdverts) {
+    if (ad && ad.id && !deletedIds.includes(ad.id)) {
+      mergedMap.set(ad.id, ad);
+    }
+  }
+
+  const adverts = Array.from(mergedMap.values());
   for (const placement of ["top_banner", "popup"]) {
-    renderAdvertPlacement(placement, adverts.find((advert) => advert.placement === placement));
+    const activeAdvert = adverts.find((advert) => advert.placement === placement && advert.is_enabled && advert.is_published);
+    renderAdvertPlacement(placement, activeAdvert);
   }
 }
 
@@ -2090,6 +2176,9 @@ loadCustomLeagues().catch((error) => {
 window.addEventListener("storage", (event) => {
   if (event.key === "90minutes_custom_leagues") {
     loadCustomLeagues().catch(() => {});
+  }
+  if (event.key === "90minutes_site_adverts") {
+    loadPublicAdverts().catch(() => {});
   }
 });
 loadPublicAdverts().catch((error) => {

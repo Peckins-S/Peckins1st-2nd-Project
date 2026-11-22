@@ -87,6 +87,27 @@ revoke all on public.site_adverts from anon, authenticated;
 grant select on public.site_adverts to anon, authenticated;
 grant insert, update, delete on public.site_adverts to authenticated;
 
+alter table public.site_adverts
+  add column if not exists click_count integer not null default 0,
+  add column if not exists start_date date,
+  add column if not exists end_date date;
+
+create or replace function public.increment_advert_click(p_advert_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.site_adverts
+  set click_count = coalesce(click_count, 0) + 1
+  where id = p_advert_id;
+end;
+$$;
+
+revoke all on function public.increment_advert_click(uuid) from public;
+grant execute on function public.increment_advert_click(uuid) to anon, authenticated;
+
 drop policy if exists "Public can read published enabled adverts" on public.site_adverts;
 create policy "Public can read published enabled adverts"
   on public.site_adverts

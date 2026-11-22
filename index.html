@@ -40,7 +40,6 @@
         <a class="primary-link selected" href="#fixtures" data-page="fixtures">Fixtures</a>
         <a class="primary-link" href="#standings" data-page="standings">Standings</a>
         <a class="primary-link" href="#stats" data-page="stats">Stats</a>
-        <a class="primary-link" id="admin-nav-link" href="#admin" data-page="admin" hidden>Admin</a>
       </nav>
       <div class="topbar-right"><span class="feed-dot"></span><span class="date-label" id="header-date"></span></div>
     </header>
@@ -125,30 +124,6 @@
         </footer>
       </section>
     </main>
-    <main class="admin-embedded-shell" id="admin-panel-view" hidden>
-      <iframe id="admin-panel-frame" title="90+minutes admin panel" loading="lazy"></iframe>
-    </main>
-    <dialog class="admin-auth-dialog" id="admin-auth-dialog" aria-labelledby="admin-auth-title">
-      <div class="admin-auth-content">
-        <button class="player-dialog-close" id="admin-auth-close" type="button" aria-label="Close admin sign in">×</button>
-        <p class="admin-card-kicker">90+MINUTES / CONTROL ROOM</p>
-        <h2 id="admin-auth-title">Admin sign in</h2>
-        <p class="admin-auth-help">Sign in with the authorized site admin account to open the control panel.</p>
-        <p class="admin-auth-notice" id="admin-auth-notice" role="status" aria-live="polite" hidden></p>
-        <form id="admin-auth-form">
-          <label class="admin-field">
-            <span>Email</span>
-            <input id="admin-auth-email" type="email" autocomplete="username" required>
-          </label>
-          <label class="admin-field">
-            <span>Password</span>
-            <input id="admin-auth-password" type="password" autocomplete="current-password" required>
-          </label>
-          <button class="admin-primary-button" id="admin-auth-submit" type="submit">Sign in</button>
-          <button class="admin-reset-link" id="admin-reset-request" type="button">Forgot password?</button>
-        </form>
-      </div>
-    </dialog>
     <aside class="popup-advert" id="popup-advert" aria-label="Sponsored advertisement" hidden>
       <button class="popup-advert-close" id="popup-advert-close" type="button" aria-label="Close advertisement">×</button>
       <img class="popup-advert-background" id="popup-advert-background" alt="" aria-hidden="true" hidden>

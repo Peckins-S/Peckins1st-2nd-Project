@@ -130,7 +130,6 @@ const featuredLeagueChoices = [
 ];
 const defaultFeaturedCompetitionIds = featuredLeagueChoices.map((league) => league.id);
 let featuredCompetitionIds = new Set(defaultFeaturedCompetitionIds);
-const siteAdminEmail = "peckinssmart@gmail.com";
 
 const fotmobLeagueStatsUrls = {
   "700": "https://www.fotmob.com/leagues/47/stats/premier-league/players",
@@ -273,16 +272,6 @@ const state = {
 
 const elements = {
   appLayout: document.querySelector("#fixtures"),
-  adminNavLink: document.querySelector("#admin-nav-link"),
-  adminAuthDialog: document.querySelector("#admin-auth-dialog"),
-  adminAuthForm: document.querySelector("#admin-auth-form"),
-  adminAuthEmail: document.querySelector("#admin-auth-email"),
-  adminAuthPassword: document.querySelector("#admin-auth-password"),
-  adminAuthNotice: document.querySelector("#admin-auth-notice"),
-  adminAuthSubmit: document.querySelector("#admin-auth-submit"),
-  adminResetRequest: document.querySelector("#admin-reset-request"),
-  adminPanelView: document.querySelector("#admin-panel-view"),
-  adminPanelFrame: document.querySelector("#admin-panel-frame"),
   headerDate: document.querySelector("#header-date"),
   leagueFilters: document.querySelector("#league-filters"),
   dateStrip: document.querySelector("#date-strip"),
@@ -309,36 +298,6 @@ const elements = {
   topAdvert: document.querySelector("#top-advert"),
   popupAdvert: document.querySelector("#popup-advert")
 };
-let siteAdminClient = null;
-let signedInSiteAdmin = false;
-let supabaseLibraryRequest = null;
-
-function loadSupabaseLibrary() {
-  if (window.supabase && typeof window.supabase.createClient === "function") return Promise.resolve();
-  if (supabaseLibraryRequest) return supabaseLibraryRequest;
-  supabaseLibraryRequest = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-    script.async = true;
-    script.onload = () => window.supabase && typeof window.supabase.createClient === "function"
-      ? resolve()
-      : reject(new Error("The Supabase client could not be initialized."));
-    script.onerror = () => reject(new Error("The Supabase client could not be loaded."));
-    document.head.append(script);
-  }).catch((error) => {
-    supabaseLibraryRequest = null;
-    throw error;
-  });
-  return supabaseLibraryRequest;
-}
-
-async function ensureSiteAdminClient() {
-  const config = getSupabaseConfig();
-  if (!config) return null;
-  await loadSupabaseLibrary();
-  if (!siteAdminClient) siteAdminClient = window.supabase.createClient(config.url, config.anonKey);
-  return siteAdminClient;
-}
 
 function dateKey(date) {
   return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
@@ -672,154 +631,6 @@ function getSupabaseConfig() {
   }
   return config;
 }
-
-function setSiteAdminUser(user) {
-  signedInSiteAdmin = Boolean(user && (user.email || "").toLowerCase() === siteAdminEmail);
-  elements.adminNavLink.hidden = !signedInSiteAdmin;
-  if (!signedInSiteAdmin) {
-    elements.adminPanelFrame.src = "about:blank";
-    elements.adminPanelView.hidden = true;
-    elements.appLayout.hidden = false;
-    if (state.page === "admin") {
-      state.page = "fixtures";
-      history.replaceState(null, "", "#fixtures");
-      renderPage();
-    }
-  } else if (location.hash === "#admin") {
-    selectPage("admin");
-  }
-}
-
-function showAdminAuthNotice(message) {
-  elements.adminAuthNotice.textContent = message;
-  elements.adminAuthNotice.hidden = false;
-}
-
-async function syncAdminGateSession(session) {
-  const isAdmin = Boolean(session && session.access_token && session.user
-    && (session.user.email || "").toLowerCase() === siteAdminEmail);
-  const response = await fetch("/api/admin-session", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(isAdmin ? { access_token: session.access_token } : { logout: true })
-  });
-  if (!response.ok) throw new Error("Could not verify the admin session with the server.");
-}
-
-async function initializeSiteAdmin() {
-  const config = getSupabaseConfig();
-  if (!config) return;
-  try {
-    await ensureSiteAdminClient();
-  } catch (error) {
-    console.error("Could not load the admin sign-in client.", error);
-    return;
-  }
-
-  elements.adminAuthEmail.value = siteAdminEmail;
-  const { data, error } = await siteAdminClient.auth.getSession();
-  if (error && error.name !== "AuthSessionMissingError") {
-    console.error("Could not check the site admin session.", error);
-    setSiteAdminUser(null);
-    return;
-  }
-  try {
-    await syncAdminGateSession(data && data.session);
-    setSiteAdminUser(data && data.session && data.session.user);
-  } catch (sessionError) {
-    console.error("Could not secure the admin session.", sessionError);
-    setSiteAdminUser(null);
-  }
-  siteAdminClient.auth.onAuthStateChange((_event, session) => {
-    syncAdminGateSession(session).then(() => {
-      setSiteAdminUser(session && session.user);
-    }).catch((sessionError) => {
-      console.error("Could not secure the admin session.", sessionError);
-      setSiteAdminUser(null);
-    });
-  });
-}
-
-elements.adminNavLink.addEventListener("click", (event) => {
-  event.preventDefault();
-  if (signedInSiteAdmin) {
-    history.replaceState(null, "", "#admin");
-    selectPage("admin");
-  }
-});
-
-document.querySelector("#admin-auth-close").addEventListener("click", () => {
-  elements.adminAuthDialog.close();
-});
-
-elements.adminAuthForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  let client;
-  try {
-    client = await ensureSiteAdminClient();
-  } catch (error) {
-    console.error("Could not load the admin sign-in client.", error);
-    showAdminAuthNotice("Admin sign-in is unavailable. Check your connection and try again.");
-    return;
-  }
-  if (!client) {
-    showAdminAuthNotice("Admin sign-in is unavailable. Check your connection and try again.");
-    return;
-  }
-  elements.adminAuthSubmit.disabled = true;
-  showAdminAuthNotice("Signing in…");
-  const { data, error } = await client.auth.signInWithPassword({
-    email: elements.adminAuthEmail.value.trim(),
-    password: elements.adminAuthPassword.value
-  });
-  elements.adminAuthPassword.value = "";
-  elements.adminAuthSubmit.disabled = false;
-  if (error) {
-    showAdminAuthNotice(`Sign-in failed: ${error.message}`);
-    return;
-  }
-  if (!data.user || (data.user.email || "").toLowerCase() !== siteAdminEmail) {
-    await client.auth.signOut();
-    showAdminAuthNotice(`This panel is restricted to ${siteAdminEmail}.`);
-    return;
-  }
-  try {
-    await syncAdminGateSession(data.session);
-  } catch (sessionError) {
-    console.error("Could not secure the admin session.", sessionError);
-    await client.auth.signOut();
-    showAdminAuthNotice("Could not verify the admin session with the server. Please try again.");
-    return;
-  }
-  setSiteAdminUser(data.user);
-  elements.adminAuthDialog.close();
-  history.replaceState(null, "", "#admin");
-  selectPage("admin");
-});
-
-elements.adminResetRequest.addEventListener("click", async () => {
-  let client;
-  try {
-    client = await ensureSiteAdminClient();
-  } catch (error) {
-    console.error("Could not load the admin sign-in client.", error);
-    showAdminAuthNotice("Password reset is unavailable. Check your connection and try again.");
-    return;
-  }
-  if (!client) {
-    showAdminAuthNotice("Password reset is unavailable. Check your connection and try again.");
-    return;
-  }
-  elements.adminResetRequest.disabled = true;
-  const { error } = await client.auth.resetPasswordForEmail(siteAdminEmail, {
-    redirectTo: `${location.origin}/admin.html`
-  });
-  elements.adminResetRequest.disabled = false;
-  showAdminAuthNotice(error
-    ? `Could not send a reset email: ${error.message}`
-    : `If an account exists for ${siteAdminEmail}, a password reset email has been sent.`);
-});
 
 function validAdvertImageUrl(value) {
   if (!value || typeof value !== "string") return "";
@@ -1968,22 +1779,7 @@ function renderLeagueStats() {
 }
 
 function renderPage() {
-  if (state.page === "admin") {
-    elements.appLayout.hidden = true;
-    elements.adminPanelView.hidden = false;
-    if (elements.adminPanelFrame.src === "about:blank" || !elements.adminPanelFrame.src) {
-      elements.adminPanelFrame.src = "/admin-panel?embedded=1";
-    }
-    document.querySelectorAll(".primary-link").forEach((link) => {
-      const selected = link === elements.adminNavLink;
-      link.classList.toggle("selected", selected);
-      if (selected) link.setAttribute("aria-current", "page");
-      else link.removeAttribute("aria-current");
-    });
-    return;
-  }
   elements.appLayout.hidden = false;
-  elements.adminPanelView.hidden = true;
   const isDetail = Boolean(state.detailMatchId);
   const isStandings = state.page === "standings";
   const isLeagueStats = state.page === "stats";
@@ -2035,19 +1831,8 @@ async function loadData() {
 }
 
 function selectPage(page) {
-  if (page === "admin" && !signedInSiteAdmin) {
-    elements.adminAuthNotice.hidden = true;
-    elements.adminAuthDialog.showModal();
-    return;
-  }
-  if (!["scores", "fixtures", "standings", "stats", "admin"].includes(page)) return;
+  if (!["scores", "fixtures", "standings", "stats"].includes(page)) return;
   state.page = page;
-  if (page === "admin") {
-    state.detailMatchId = null;
-    state.detailRequest += 1;
-    renderPage();
-    return;
-  }
   if (page === "scores") state.filter = "live";
   if (page === "fixtures") state.filter = "upcoming";
   document.querySelectorAll(".filter-tab").forEach((tab) => {
@@ -2193,21 +1978,8 @@ renderLeagueFilters();
 renderDateStrip();
 const initialPage = location.hash.slice(1);
 if (["scores", "fixtures", "standings", "stats"].includes(initialPage)) selectPage(initialPage);
-else if (initialPage === "admin") {
-  initializeSiteAdmin().then(() => {
-    if (signedInSiteAdmin) selectPage("admin");
-    else selectPage("fixtures");
-  }).catch((error) => {
-    console.error("Could not initialize the site admin session.", error);
-    selectPage("fixtures");
-  });
-} else selectPage("fixtures");
+else selectPage("fixtures");
 
-if (initialPage !== "admin") {
-  initializeSiteAdmin().catch((error) => {
-    console.error("Could not initialize the site admin session.", error);
-  });
-}
 loadPublicSiteSettings().catch((error) => {
   console.error("Could not load public site settings.", error);
 });

@@ -334,7 +334,7 @@ function validAdvertImageUrl(value) {
   if (!value || typeof value !== "string") return "";
   if (value.startsWith("data:image/")) return value;
   try {
-    const image = new URL(value);
+    const image = new URL(value, location.origin);
     if (image.protocol === "https:" || image.protocol === "http:") {
       return image.href;
     }
@@ -517,6 +517,35 @@ function renderAdvertList() {
   }
 }
 
+const DEFAULT_SITE_ADVERTS = [
+  {
+    id: "default-top-fc25",
+    placement: "top_banner",
+    headline: "EA SPORTS FC™ 25 — The World's Game",
+    description: "Play with 19,000+ authentic players across 700+ clubs and 30+ leagues. Experience true football immersion today.",
+    button_text: "Get FC 25 Now",
+    button_url: "https://www.ea.com/games/ea-sports-fc/fc-25",
+    background_image_url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%230f2b1d"/><stop offset="50%" stop-color="%231a4329"/><stop offset="100%" stop-color="%2308140c"/></linearGradient><radialGradient id="r" cx="80%" cy="30%" r="60%"><stop offset="0%" stop-color="%2348bb78" stop-opacity="0.35"/><stop offset="100%" stop-color="%23000" stop-opacity="0"/></radialGradient></defs><rect width="100%" height="100%" fill="url(%23g)"/><rect width="100%" height="100%" fill="url(%23r)"/><circle cx="950" cy="150" r="180" stroke="%2338a169" stroke-width="2" fill="none" opacity="0.25"/><circle cx="950" cy="150" r="280" stroke="%2338a169" stroke-width="1.5" fill="none" opacity="0.15"/></svg>',
+    logo_image_url: "badges/all-competitions.svg",
+    is_published: true,
+    is_enabled: true,
+    click_count: 0
+  },
+  {
+    id: "default-popup-ucl",
+    placement: "popup",
+    headline: "UEFA Champions League Official Store",
+    description: "Shop official match balls, authentic jerseys, winner merchandise, and matchday souvenirs with worldwide delivery.",
+    button_text: "Shop Official Gear",
+    button_url: "https://store.uefa.com",
+    background_image_url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><defs><linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23141f36"/><stop offset="50%" stop-color="%230e1626"/><stop offset="100%" stop-color="%23060b14"/></linearGradient><radialGradient id="r2" cx="30%" cy="20%" r="70%"><stop offset="0%" stop-color="%233b82f6" stop-opacity="0.3"/><stop offset="100%" stop-color="%23000" stop-opacity="0"/></radialGradient></defs><rect width="100%" height="100%" fill="url(%23g2)"/><rect width="100%" height="100%" fill="url(%23r2)"/><circle cx="200" cy="200" r="150" stroke="%2360a5fa" stroke-width="1" fill="none" opacity="0.2"/></svg>',
+    logo_image_url: "badges/champions-league.png",
+    is_published: true,
+    is_enabled: true,
+    click_count: 0
+  }
+];
+
 async function loadAdverts() {
   adminElements.advertListStatus.textContent = "Loading adverts…";
   let localAdverts = loadStoredAdverts();
@@ -533,7 +562,8 @@ async function loadAdverts() {
         .select("*")
         .order("updated_at", { ascending: false });
       if (!error && Array.isArray(data)) {
-        remoteAdverts = data.filter((item) => !deletedIds.includes(item.id));
+        // Filter out dummy test adverts and deleted adverts
+        remoteAdverts = data.filter((item) => item && item.headline && item.headline.toLowerCase() !== "testing" && !deletedIds.includes(item.id));
       }
     } catch (e) {
       console.warn("Could not load site_adverts from Supabase", e);
@@ -546,6 +576,16 @@ async function loadAdverts() {
   }
   for (const ad of localAdverts) {
     if (ad && ad.id && !deletedIds.includes(ad.id)) merged.set(ad.id, ad);
+  }
+
+  // Include default high-quality adverts if placements have no custom adverts
+  for (const defaultAd of DEFAULT_SITE_ADVERTS) {
+    if (!deletedIds.includes(defaultAd.id)) {
+      const exists = Array.from(merged.values()).some((ad) => ad.placement === defaultAd.placement);
+      if (!exists) {
+        merged.set(defaultAd.id, defaultAd);
+      }
+    }
   }
 
   adverts = Array.from(merged.values());

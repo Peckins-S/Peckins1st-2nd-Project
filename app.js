@@ -941,8 +941,8 @@ const DEFAULT_SITE_ADVERTS = [
     description: "Play with 19,000+ authentic players across 700+ clubs and 30+ leagues. Experience true football immersion today.",
     button_text: "Get FC 25 Now",
     button_url: "https://www.ea.com/games/ea-sports-fc/fc-25",
-    background_image_url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%230f2b1d"/><stop offset="50%" stop-color="%231a4329"/><stop offset="100%" stop-color="%2308140c"/></linearGradient><radialGradient id="r" cx="80%" cy="30%" r="60%"><stop offset="0%" stop-color="%2348bb78" stop-opacity="0.35"/><stop offset="100%" stop-color="%23000" stop-opacity="0"/></radialGradient></defs><rect width="100%" height="100%" fill="url(%23g)"/><rect width="100%" height="100%" fill="url(%23r)"/><circle cx="950" cy="150" r="180" stroke="%2338a169" stroke-width="2" fill="none" opacity="0.25"/><circle cx="950" cy="150" r="280" stroke="%2338a169" stroke-width="1.5" fill="none" opacity="0.15"/></svg>',
-    logo_image_url: "badges/all-competitions.svg",
+    background_image_url: "badges/all-competitions.svg",
+    logo_image_url: "badges/premier-league.png",
     is_published: true,
     is_enabled: true,
     click_count: 0
@@ -954,7 +954,7 @@ const DEFAULT_SITE_ADVERTS = [
     description: "Shop official match balls, authentic jerseys, winner merchandise, and matchday souvenirs with worldwide delivery.",
     button_text: "Shop Official Gear",
     button_url: "https://store.uefa.com",
-    background_image_url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><defs><linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23141f36"/><stop offset="50%" stop-color="%230e1626"/><stop offset="100%" stop-color="%23060b14"/></linearGradient><radialGradient id="r2" cx="30%" cy="20%" r="70%"><stop offset="0%" stop-color="%233b82f6" stop-opacity="0.3"/><stop offset="100%" stop-color="%23000" stop-opacity="0"/></radialGradient></defs><rect width="100%" height="100%" fill="url(%23g2)"/><rect width="100%" height="100%" fill="url(%23r2)"/><circle cx="200" cy="200" r="150" stroke="%2360a5fa" stroke-width="1" fill="none" opacity="0.2"/></svg>',
+    background_image_url: "badges/all-competitions.svg",
     logo_image_url: "badges/champions-league.png",
     is_published: true,
     is_enabled: true,
@@ -970,7 +970,12 @@ async function loadPublicAdverts() {
     const raw = localStorage.getItem("90minutes_site_adverts");
     if (raw) {
       const list = JSON.parse(raw);
-      if (Array.isArray(list)) localAdverts = list;
+      if (Array.isArray(list)) {
+        localAdverts = list.filter((r) => r && r.headline && r.headline.toLowerCase() !== "testing");
+        if (raw.toLowerCase().includes('"testing"')) {
+          localStorage.setItem("90minutes_site_adverts", JSON.stringify(localAdverts));
+        }
+      }
     }
   } catch {}
 

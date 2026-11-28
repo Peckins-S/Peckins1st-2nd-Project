@@ -30,7 +30,8 @@ jobs:
       - name: Prepare website files
         run: |
           mkdir _site
-          cp index.html app.js style.css admin.html admin.js supabase-config.js _site/
+          cp index.html app.js style.css admin.html admin.js supabase-config.js favicon.svg favicon.ico favicon-32x32.png apple-touch-icon.png _site/
+          cp -r badges _site/
       - name: Upload website
         uses: actions/upload-pages-artifact@v3
         with:
